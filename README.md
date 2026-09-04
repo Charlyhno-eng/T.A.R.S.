@@ -24,7 +24,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Lancement
+## Start
 
 ```bash
 python app.py
