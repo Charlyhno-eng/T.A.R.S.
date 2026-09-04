@@ -1,6 +1,6 @@
 ![T.A.R.S.](public/tars-banner.png)
 
-## T.A.R.S.
+# **T.A.R.S.**
 
 ---
 
