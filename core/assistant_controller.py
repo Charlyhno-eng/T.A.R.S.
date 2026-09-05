@@ -38,14 +38,10 @@ class AssistantController(QObject):
     audioPathChanged = Signal()
 
     GREETING = (
-        "Bonjour utilisateur, je suis votre assistant "
-        "T.A.R.S., comment puis-je vous aider aujourd'hui ?"
+        "Ici votre assistant TARS, comment puis-je vous aider aujourd'hui ?"
     )
 
-    def __init__(
-        self,
-        parent: QObject | None = None,
-    ) -> None:
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
 
         self._state = "idle"
@@ -141,7 +137,7 @@ class AssistantController(QObject):
         return self._audio_path
 
     # ------------------------------------------------------------------
-    # Compatibilité avec l'ancien Main.qml
+    # Compatibilité avec les composants QML existants
     # ------------------------------------------------------------------
 
     @Property(str, notify=stateChanged)
@@ -194,29 +190,57 @@ class AssistantController(QObject):
         """
         self.activate()
 
+    @Slot()
+    def audioPlaybackFinished(self) -> None:
+        """
+        Appelée par QML lorsque MediaPlayer arrive exactement à la
+        fin naturelle du fichier audio.
+
+        C'est le SEUL endroit où une prise de parole normale repasse
+        explicitement en veille.
+        """
+
+        logger.info(
+            "[T.A.R.S.][Assistant] Lecture de la réponse terminée."
+        )
+
+        self._tts_service.playback_finished()
+
+        self._set_state("idle")
+
     # ==================================================================
     # Callbacks TTS
     # ==================================================================
 
-    def _on_tts_status_changed(
-        self,
-        status: str,
-    ) -> None:
+    def _on_tts_status_changed(self, status: str) -> None:
         self._set_status(status)
 
-    def _on_tts_state_changed(
-        self,
-        state: str,
-    ) -> None:
+    def _on_tts_state_changed(self, state: str) -> None:
         if state == "loading":
             self._set_tts_loading(True)
             self._set_tts_ready(False)
+
+            self._set_state("loading")
 
         elif state == "ready":
             self._set_tts_loading(False)
             self._set_tts_ready(True)
 
-            if self._state == "loading":
+            # ----------------------------------------------------------
+            # IMPORTANT
+            # ----------------------------------------------------------
+            #
+            # "ready" peut maintenant être émis après la vraie fin de
+            # lecture audio.
+            #
+            # On repasse donc en idle si T.A.R.S. était en train de
+            # parler.
+            #
+            # Lors de l'initialisation, _state vaut "loading", ce qui
+            # permet également de revenir normalement à idle.
+            # ----------------------------------------------------------
+
+            if self._state in ("loading", "speaking"):
                 self._set_state("idle")
 
         elif state == "speaking":
@@ -227,10 +251,7 @@ class AssistantController(QObject):
             self._set_tts_ready(False)
             self._set_state("idle")
 
-    def _on_tts_error(
-        self,
-        error: str,
-    ) -> None:
+    def _on_tts_error(self, error: str) -> None:
         logger.error(
             "[T.A.R.S.][TTS] %s",
             error,
@@ -246,23 +267,32 @@ class AssistantController(QObject):
     def _on_speech_started(self) -> None:
         self._set_state("speaking")
 
-    def _on_speech_finished(
-        self,
-        audio_path: str,
-    ) -> None:
+    def _on_speech_finished(self, audio_path: str) -> None:
+        """
+        Appelé lorsque le fichier WAV est prêt.
+
+        ATTENTION :
+
+        Cela ne signifie PAS que T.A.R.S. a terminé de parler.
+
+        Le fichier va seulement être transmis à MediaPlayer.
+        L'état reste donc "speaking".
+        """
+
         self._audio_path = audio_path
         self.audioPathChanged.emit()
 
-        self._set_state("idle")
+        self._set_state("speaking")
+
+        self._set_status(
+            "Réponse en cours..."
+        )
 
     # ==================================================================
     # Helpers
     # ==================================================================
 
-    def _set_state(
-        self,
-        value: str,
-    ) -> None:
+    def _set_state(self, value: str) -> None:
         if value == self._state:
             return
 
@@ -270,10 +300,7 @@ class AssistantController(QObject):
 
         self.stateChanged.emit()
 
-    def _set_status(
-        self,
-        value: str,
-    ) -> None:
+    def _set_status(self, value: str) -> None:
         if value == self._status:
             return
 
@@ -281,10 +308,7 @@ class AssistantController(QObject):
 
         self.statusChanged.emit()
 
-    def _set_tts_ready(
-        self,
-        value: bool,
-    ) -> None:
+    def _set_tts_ready(self, value: bool) -> None:
         if value == self._tts_ready:
             return
 
@@ -292,10 +316,7 @@ class AssistantController(QObject):
 
         self.ttsReadyChanged.emit()
 
-    def _set_tts_loading(
-        self,
-        value: bool,
-    ) -> None:
+    def _set_tts_loading(self, value: bool) -> None:
         if value == self._tts_loading:
             return
 
@@ -321,6 +342,7 @@ class AssistantController(QObject):
 
         try:
             self._tts_service.shutdown()
+
         except Exception:
             logger.exception(
                 "[T.A.R.S.] Erreur lors de l'arrêt."

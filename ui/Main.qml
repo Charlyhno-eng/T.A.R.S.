@@ -31,6 +31,7 @@ ApplicationWindow {
 
     AudioOutput {
         id: audioOutput
+
         volume: 1.0
     }
 
@@ -41,7 +42,37 @@ ApplicationWindow {
 
         onPlaybackStateChanged: {
             if (playbackState === MediaPlayer.PlayingState) {
-                window.assistantState = "speaking"
+                console.log(
+                    "[T.A.R.S.][Audio] Lecture de la réponse."
+                )
+            }
+        }
+
+        /*
+         * C'est cet événement qui détermine la véritable fin de la
+         * réponse vocale.
+         *
+         * EndOfMedia signifie que le fichier audio vient d'être lu
+         * jusqu'à sa dernière milliseconde.
+         */
+        onMediaStatusChanged: {
+            if (mediaStatus === MediaPlayer.EndOfMedia) {
+                console.log(
+                    "[T.A.R.S.][Audio] Fin réelle de la réponse."
+                )
+
+                assistant.audioPlaybackFinished()
+            }
+        }
+
+        onErrorOccurred: {
+            if (error !== MediaPlayer.NoError) {
+                console.error(
+                    "[T.A.R.S.][Audio] Erreur :",
+                    errorString
+                )
+
+                assistant.audioPlaybackFinished()
             }
         }
     }
@@ -53,6 +84,13 @@ ApplicationWindow {
             if (!assistant.audioPath)
                 return
 
+            /*
+             * Arrêt manuel d'une éventuelle ancienne lecture.
+             *
+             * Important :
+             * EndOfMedia n'est pas utilisé ici, car il s'agit d'un
+             * arrêt volontaire et non de la fin naturelle de la phrase.
+             */
             audioPlayer.stop()
 
             audioPlayer.source =
@@ -203,7 +241,7 @@ ApplicationWindow {
     }
 
     // ---------------------------------------------------------------
-    // Message utilisateur
+    // Message utilisateur / statut
     // ---------------------------------------------------------------
 
     Text {
@@ -274,7 +312,9 @@ ApplicationWindow {
 
                 NumberAnimation {
                     from: 0
-                    to: loadingBar.parent.width -
+
+                    to:
+                        loadingBar.parent.width -
                         loadingBar.width
 
                     duration: 1100
@@ -283,8 +323,9 @@ ApplicationWindow {
                 }
 
                 NumberAnimation {
-                    from: loadingBar.parent.width -
-                          loadingBar.width
+                    from:
+                        loadingBar.parent.width -
+                        loadingBar.width
 
                     to: 0
 

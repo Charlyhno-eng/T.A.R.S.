@@ -29,10 +29,7 @@ class PocketTTS:
 
         return self._model.sample_rate
 
-    def initialize(
-        self,
-        on_status: Callable[[str], None] | None = None,
-    ) -> None:
+    def initialize(self, on_status: Callable[[str], None] | None = None) -> None:
         """
         Charge le modèle français et la voix prédéfinie Estelle.
 
@@ -68,11 +65,7 @@ class PocketTTS:
         if on_status:
             on_status("Pocket TTS prêt.")
 
-    def generate(
-        self,
-        text: str,
-        output_path: Path,
-    ) -> Path:
+    def generate(self, text: str, output_path: Path) -> Path:
         """
         Génère un fichier WAV avec Pocket TTS.
         """

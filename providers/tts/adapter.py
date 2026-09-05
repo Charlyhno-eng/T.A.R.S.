@@ -90,10 +90,7 @@ class TTSAdapter:
     # API publique
     # ==================================================================
 
-    def initialize(
-        self,
-        on_status: Callable[[str], None] | None = None,
-    ) -> None:
+    def initialize(self, on_status: Callable[[str], None] | None = None) -> None:
         """
         Initialise Pocket TTS.
         """
@@ -111,11 +108,7 @@ class TTSAdapter:
             on_status=on_status,
         )
 
-    def generate(
-        self,
-        text: str,
-        output_path: Path,
-    ) -> Path:
+    def generate(self, text: str, output_path: Path) -> Path:
         """
         Demande au provider de générer un fichier WAV.
         """

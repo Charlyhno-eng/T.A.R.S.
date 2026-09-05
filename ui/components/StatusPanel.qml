@@ -1,8 +1,8 @@
 import QtQuick 2.15
 import theme 1.0
 
-// Bandeau de statut : libellé d'état + petit visualiseur audio.
-// Les barres s'animent uniquement pendant "listening" / "speaking".
+// Bandeau de statut : libellé d'état.
+// Purement visuel, sans visualiseur audio.
 Column {
     id: root
 
@@ -34,58 +34,5 @@ Column {
         font.pixelSize: 15
         font.bold: true
         font.letterSpacing: 4
-    }
-
-    Row {
-        anchors.horizontalCenter: parent.horizontalCenter
-
-        spacing: 4
-        height: 30
-
-        Repeater {
-            model: 22
-
-            delegate: Rectangle {
-                id: bar
-
-                property real target: 0.15
-
-                width: 3
-                radius: 1.5
-
-                color: root.accent
-
-                height: Math.max(3, target * 26)
-
-                anchors.bottom: parent.bottom
-
-                // Animation de la hauteur des barres.
-                Behavior on height {
-                    NumberAnimation {
-                        duration: 140
-                        easing.type: Easing.OutQuad
-                    }
-                }
-
-                Timer {
-                    interval: 90 + Math.random() * 160
-
-                    running: root.sphereState === "listening"
-                             || root.sphereState === "speaking"
-
-                    repeat: true
-
-                    onTriggered: {
-                        bar.target = 0.15 + Math.random() * 0.85
-                    }
-                }
-
-                Behavior on target {
-                    NumberAnimation {
-                        duration: 200
-                    }
-                }
-            }
-        }
     }
 }
