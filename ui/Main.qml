@@ -1,18 +1,15 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtMultimedia 6.5
 import theme 1.0
 import "components"
-
-// Page unique de l'interface T.A.R.S.
-//
-// Python expose `ttsController` au contexte QML.
-// Le clic sur la sphère déclenche alors directement le TTS.
 
 ApplicationWindow {
     id: window
 
     width: 1000
     height: 700
+
     minimumWidth: 760
     minimumHeight: 560
 
@@ -22,49 +19,53 @@ ApplicationWindow {
 
     color: Theme.backgroundTop
 
-    property string assistantState: "idle"
+    // ---------------------------------------------------------------
+    // État
+    // ---------------------------------------------------------------
 
-    property string welcomeMessage: "Bonjour utilisateur, je suis votre assistant TARS, comment puis-je vous aider aujourd'hui ?"
+    property string assistantState: assistant.state
 
-    function cycleState() {
-        if (assistantState === "idle") {
-            assistantState = "listening"
-        } else if (assistantState === "listening") {
-            assistantState = "thinking"
-        } else if (assistantState === "thinking") {
-            assistantState = "speaking"
-        } else {
-            assistantState = "idle"
-        }
+    // ---------------------------------------------------------------
+    // Lecture audio
+    // ---------------------------------------------------------------
+
+    AudioOutput {
+        id: audioOutput
+        volume: 1.0
     }
 
-    function activateAssistant() {
-        assistantState = "thinking"
+    MediaPlayer {
+        id: audioPlayer
 
-        ttsController.speak(welcomeMessage)
+        audioOutput: audioOutput
+
+        onPlaybackStateChanged: {
+            if (playbackState === MediaPlayer.PlayingState) {
+                window.assistantState = "speaking"
+            }
+        }
     }
 
     Connections {
-        target: ttsController
+        target: assistant
 
-        function onSpeakingChanged(speaking) {
-            if (speaking) {
-                window.assistantState = "speaking"
-            } else {
-                window.assistantState = "idle"
-            }
-        }
+        function onAudioPathChanged() {
+            if (!assistant.audioPath)
+                return
 
-        function onErrorOccurred(message) {
-            console.error(
-                "[T.A.R.S.][TTS] " + message
-            )
+            audioPlayer.stop()
 
-            window.assistantState = "idle"
+            audioPlayer.source =
+                "file://" + assistant.audioPath
+
+            audioPlayer.play()
         }
     }
 
-    // --- Fond ---
+    // ---------------------------------------------------------------
+    // Fond
+    // ---------------------------------------------------------------
+
     Rectangle {
         anchors.fill: parent
 
@@ -81,9 +82,13 @@ ApplicationWindow {
         }
     }
 
-    // --- Grille discrète façon HUD ---
+    // ---------------------------------------------------------------
+    // Grille HUD
+    // ---------------------------------------------------------------
+
     Canvas {
         anchors.fill: parent
+
         opacity: 0.06
 
         onPaint: {
@@ -112,17 +117,24 @@ ApplicationWindow {
         }
     }
 
-    // --- Bandeau supérieur ---
+    // ---------------------------------------------------------------
+    // Bandeau supérieur
+    // ---------------------------------------------------------------
+
     TopBar {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.margins: 24
     }
 
-    // --- Horloge en haut à droite ---
+    // ---------------------------------------------------------------
+    // Horloge
+    // ---------------------------------------------------------------
+
     Text {
         anchors.top: parent.top
         anchors.right: parent.right
+
         anchors.margins: 24
 
         text: Qt.formatDateTime(
@@ -153,7 +165,10 @@ ApplicationWindow {
         }
     }
 
-    // --- Sphère centrale + anneau de particules ---
+    // ---------------------------------------------------------------
+    // Sphère centrale
+    // ---------------------------------------------------------------
+
     Item {
         id: centralItem
 
@@ -182,26 +197,37 @@ ApplicationWindow {
                 window.assistantState
 
             onClicked: {
-                window.activateAssistant()
+                assistant.activate()
             }
         }
     }
 
-    // --- Indice discret ---
+    // ---------------------------------------------------------------
+    // Message utilisateur
+    // ---------------------------------------------------------------
+
     Text {
         anchors.top: centralItem.bottom
         anchors.horizontalCenter: parent.horizontalCenter
 
         anchors.topMargin: 18
 
-        text: "CLIQUEZ SUR LA SPHÈRE POUR INTERAGIR"
+        text: {
+            if (assistant.ttsLoading)
+                return assistant.status
+
+            if (!assistant.ttsReady)
+                return assistant.status
+
+            if (window.assistantState === "idle")
+                return "CLIQUEZ SUR LA SPHÈRE POUR INTERAGIR"
+
+            return assistant.status
+        }
 
         color: Theme.textSecondary
 
-        opacity:
-            window.assistantState === "idle"
-            ? 0.7
-            : 0
+        opacity: 0.8
 
         font.family: Theme.fontFamily
         font.pixelSize: 11
@@ -214,8 +240,69 @@ ApplicationWindow {
         }
     }
 
-    // --- Bandeau de statut ---
+    // ---------------------------------------------------------------
+    // Indicateur de chargement TTS
+    // ---------------------------------------------------------------
+
+    Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+
+        anchors.bottom: statusPanel.top
+        anchors.bottomMargin: 18
+
+        width: 260
+        height: 3
+
+        radius: 1.5
+
+        color: Theme.panelBorder
+
+        visible: assistant.ttsLoading
+
+        Rectangle {
+            id: loadingBar
+
+            height: parent.height
+            width: parent.width * 0.25
+
+            radius: parent.radius
+
+            color: Theme.colorListening
+
+            SequentialAnimation on x {
+                loops: Animation.Infinite
+
+                NumberAnimation {
+                    from: 0
+                    to: loadingBar.parent.width -
+                        loadingBar.width
+
+                    duration: 1100
+
+                    easing.type: Easing.InOutQuad
+                }
+
+                NumberAnimation {
+                    from: loadingBar.parent.width -
+                          loadingBar.width
+
+                    to: 0
+
+                    duration: 1100
+
+                    easing.type: Easing.InOutQuad
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Bandeau de statut
+    // ---------------------------------------------------------------
+
     StatusPanel {
+        id: statusPanel
+
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
 

@@ -1,83 +1,99 @@
 from __future__ import annotations
-import tempfile
+
 from pathlib import Path
+from typing import Callable
+
 import scipy.io.wavfile
 from pocket_tts import TTSModel
-from .adapter import TTSAdapter
 
 
-class PocketTTSProvider(TTSAdapter):
+class PocketTTS:
     """
-    Provider TTS basé sur Kyutai Pocket TTS.
+    Intégration minimale avec Kyutai Pocket TTS.
 
-    Modèle :
-        french_24l
-
-    Voix :
-        estelle
-
-    Le modèle et l'état de la voix sont conservés en mémoire
-    afin d'éviter de les recharger à chaque phrase.
+    Ce fichier ne contient aucune logique métier T.A.R.S.
+    Il sert uniquement à communiquer avec la librairie Pocket TTS.
     """
 
     LANGUAGE = "french_24l"
     VOICE = "estelle"
 
-    def __init__(self, output_directory: Path | None = None) -> None:
+    def __init__(self) -> None:
         self._model: TTSModel | None = None
         self._voice_state = None
 
-        if output_directory is None:
-            output_directory = Path(tempfile.gettempdir()) / "tars_tts"
+    @property
+    def sample_rate(self) -> int:
+        if self._model is None:
+            raise RuntimeError("Pocket TTS n'est pas initialisé.")
 
-        self.output_directory = Path(output_directory)
-        self.output_directory.mkdir(parents=True, exist_ok=True)
+        return self._model.sample_rate
 
-    def _load_model(self) -> None:
+    def initialize(
+        self,
+        on_status: Callable[[str], None] | None = None,
+    ) -> None:
         """
-        Charge le modèle français et la voix Estelle.
+        Charge le modèle français et la voix prédéfinie Estelle.
 
-        Cette méthode n'est exécutée qu'une seule fois.
+        Important :
+        on utilise ici une voix catalogue officielle de Pocket TTS.
+        Aucun voice cloning n'est demandé.
         """
 
         if self._model is not None and self._voice_state is not None:
             return
 
-        print("[T.A.R.S.][TTS] Chargement de Pocket TTS...")
-        print(f"[T.A.R.S.][TTS] Langue : {self.LANGUAGE}")
-        print(f"[T.A.R.S.][TTS] Voix : {self.VOICE}")
+        if on_status:
+            on_status("Chargement du modèle Pocket TTS...")
 
+        # Ne surtout pas fournir de checkpoint de voice cloning.
         self._model = TTSModel.load_model(
             language=self.LANGUAGE,
         )
 
+        if on_status:
+            on_status(
+                f"Chargement de la voix française « {self.VOICE} »..."
+            )
+
+        # "estelle" est une voix prédéfinie de Pocket TTS.
+        #
+        # Pocket TTS choisit alors l'état vocal catalogue correspondant
+        # au modèle français au lieu de tenter de cloner une voix.
         self._voice_state = self._model.get_state_for_audio_prompt(
             self.VOICE
         )
 
-        print("[T.A.R.S.][TTS] Pocket TTS prêt.")
+        if on_status:
+            on_status("Pocket TTS prêt.")
 
-    def speak(self, text: str) -> Path:
+    def generate(
+        self,
+        text: str,
+        output_path: Path,
+    ) -> Path:
         """
-        Génère un fichier WAV à partir du texte fourni.
+        Génère un fichier WAV avec Pocket TTS.
         """
-
-        if not text or not text.strip():
-            raise ValueError("Le texte TTS ne peut pas être vide.")
-
-        self._load_model()
 
         if self._model is None or self._voice_state is None:
-            raise RuntimeError("Pocket TTS n'a pas pu être initialisé.")
+            raise RuntimeError("Pocket TTS n'est pas initialisé.")
 
-        print(f"[T.A.R.S.][TTS] Génération : {text}")
+        text = text.strip()
+
+        if not text:
+            raise ValueError("Le texte à synthétiser est vide.")
+
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
         audio = self._model.generate_audio(
             self._voice_state,
-            text.strip(),
+            text,
         )
-
-        output_path = self.output_directory / "tars_response.wav"
 
         scipy.io.wavfile.write(
             str(output_path),
@@ -85,16 +101,12 @@ class PocketTTSProvider(TTSAdapter):
             audio.numpy(),
         )
 
-        print(f"[T.A.R.S.][TTS] Audio généré : {output_path}")
-
         return output_path
 
-    def close(self) -> None:
+    def shutdown(self) -> None:
         """
-        Libère les références vers le modèle.
+        Libère les références vers le modèle Pocket TTS.
         """
 
         self._voice_state = None
         self._model = None
-
-        print("[T.A.R.S.][TTS] Provider arrêté.")
