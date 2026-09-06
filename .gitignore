@@ -7,7 +7,10 @@ __pycache__/
 .venv/
 venv/
 env/
-ENV/
+
+# Agents
+AGENTS.md
+skills/
 
 # Python packaging
 *.egg
@@ -16,23 +19,7 @@ dist/
 build/
 wheels/
 
-# Testing / coverage
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-.nox/
-
-# Type checkers / linters
-.mypy_cache/
-.pyright/
-.ruff_cache/
-
-# =========================
 # IDEs / Editors
-# =========================
-
 .vscode/
 .idea/
 *.swp

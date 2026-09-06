@@ -19,15 +19,8 @@ ApplicationWindow {
 
     color: Theme.backgroundTop
 
-    // ---------------------------------------------------------------
-    // État
-    // ---------------------------------------------------------------
-
-    property string assistantState: assistant.state
-
-    // ---------------------------------------------------------------
-    // Lecture audio
-    // ---------------------------------------------------------------
+    property string assistantState:
+        assistant.state
 
     AudioOutput {
         id: audioOutput
@@ -41,22 +34,21 @@ ApplicationWindow {
         audioOutput: audioOutput
 
         onPlaybackStateChanged: {
-            if (playbackState === MediaPlayer.PlayingState) {
+            if (
+                playbackState ===
+                MediaPlayer.PlayingState
+            ) {
                 console.log(
                     "[T.A.R.S.][Audio] Lecture de la réponse."
                 )
             }
         }
 
-        /*
-         * C'est cet événement qui détermine la véritable fin de la
-         * réponse vocale.
-         *
-         * EndOfMedia signifie que le fichier audio vient d'être lu
-         * jusqu'à sa dernière milliseconde.
-         */
         onMediaStatusChanged: {
-            if (mediaStatus === MediaPlayer.EndOfMedia) {
+            if (
+                mediaStatus ===
+                MediaPlayer.EndOfMedia
+            ) {
                 console.log(
                     "[T.A.R.S.][Audio] Fin réelle de la réponse."
                 )
@@ -66,7 +58,10 @@ ApplicationWindow {
         }
 
         onErrorOccurred: {
-            if (error !== MediaPlayer.NoError) {
+            if (
+                error !==
+                MediaPlayer.NoError
+            ) {
                 console.error(
                     "[T.A.R.S.][Audio] Erreur :",
                     errorString
@@ -84,25 +79,15 @@ ApplicationWindow {
             if (!assistant.audioPath)
                 return
 
-            /*
-             * Arrêt manuel d'une éventuelle ancienne lecture.
-             *
-             * Important :
-             * EndOfMedia n'est pas utilisé ici, car il s'agit d'un
-             * arrêt volontaire et non de la fin naturelle de la phrase.
-             */
             audioPlayer.stop()
 
             audioPlayer.source =
-                "file://" + assistant.audioPath
+                "file://" +
+                assistant.audioPath
 
             audioPlayer.play()
         }
     }
-
-    // ---------------------------------------------------------------
-    // Fond
-    // ---------------------------------------------------------------
 
     Rectangle {
         anchors.fill: parent
@@ -120,10 +105,6 @@ ApplicationWindow {
         }
     }
 
-    // ---------------------------------------------------------------
-    // Grille HUD
-    // ---------------------------------------------------------------
-
     Canvas {
         anchors.fill: parent
 
@@ -134,19 +115,29 @@ ApplicationWindow {
 
             ctx.reset()
 
-            ctx.strokeStyle = Theme.textPrimary
+            ctx.strokeStyle =
+                Theme.textPrimary
+
             ctx.lineWidth = 1
 
             var step = 40
 
-            for (var x = 0; x < width; x += step) {
+            for (
+                var x = 0;
+                x < width;
+                x += step
+            ) {
                 ctx.beginPath()
                 ctx.moveTo(x, 0)
                 ctx.lineTo(x, height)
                 ctx.stroke()
             }
 
-            for (var y = 0; y < height; y += step) {
+            for (
+                var y = 0;
+                y < height;
+                y += step
+            ) {
                 ctx.beginPath()
                 ctx.moveTo(0, y)
                 ctx.lineTo(width, y)
@@ -155,19 +146,61 @@ ApplicationWindow {
         }
     }
 
-    // ---------------------------------------------------------------
-    // Bandeau supérieur
-    // ---------------------------------------------------------------
-
     TopBar {
+        id: topBar
+
         anchors.top: parent.top
         anchors.left: parent.left
+
         anchors.margins: 24
     }
 
-    // ---------------------------------------------------------------
-    // Horloge
-    // ---------------------------------------------------------------
+    Rectangle {
+        id: downloadStatus
+
+        anchors.top: parent.top
+        anchors.right: parent.right
+
+        anchors.topMargin: 24
+        anchors.rightMargin: 24
+
+        width: 300
+        height: 42
+
+        radius: 21
+
+        color: Qt.rgba(
+            0,
+            0,
+            0,
+            0.18
+        )
+
+        border.width: 1
+
+        border.color:
+            Theme.panelBorder
+
+        visible:
+            assistant.ttsDownloading
+
+        Text {
+            anchors.centerIn: parent
+
+            text:
+                assistant.status
+
+            color:
+                Theme.textSecondary
+
+            font.family:
+                Theme.fontFamily
+
+            font.pixelSize: 11
+
+            font.letterSpacing: 1
+        }
+    }
 
     Text {
         anchors.top: parent.top
@@ -175,25 +208,34 @@ ApplicationWindow {
 
         anchors.margins: 24
 
+        visible:
+            !assistant.ttsDownloading
+
         text: Qt.formatDateTime(
             clock.now,
             "hh:mm:ss"
         )
 
-        color: Theme.textSecondary
+        color:
+            Theme.textSecondary
 
-        font.family: Theme.fontFamily
+        font.family:
+            Theme.fontFamily
+
         font.pixelSize: 13
+
         font.letterSpacing: 1
 
         QtObject {
             id: clock
 
-            property date now: new Date()
+            property date now:
+                new Date()
         }
 
         Timer {
             interval: 1000
+
             running: true
             repeat: true
 
@@ -202,10 +244,6 @@ ApplicationWindow {
             }
         }
     }
-
-    // ---------------------------------------------------------------
-    // Sphère centrale
-    // ---------------------------------------------------------------
 
     Item {
         id: centralItem
@@ -240,36 +278,52 @@ ApplicationWindow {
         }
     }
 
-    // ---------------------------------------------------------------
-    // Message utilisateur / statut
-    // ---------------------------------------------------------------
-
     Text {
-        anchors.top: centralItem.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top:
+            centralItem.bottom
+
+        anchors.horizontalCenter:
+            parent.horizontalCenter
 
         anchors.topMargin: 18
 
         text: {
+            if (assistant.ttsDownloading)
+                return assistant.status
+
             if (assistant.ttsLoading)
                 return assistant.status
+
+            if (!assistant.ttsInstalled)
+                return "TÉLÉCHARGEZ LE MOTEUR VOCAL POUR COMMENCER"
 
             if (!assistant.ttsReady)
                 return assistant.status
 
-            if (window.assistantState === "idle")
+            if (
+                window.assistantState ===
+                "idle"
+            ) {
                 return "CLIQUEZ SUR LA SPHÈRE POUR INTERAGIR"
+            }
 
             return assistant.status
         }
 
-        color: Theme.textSecondary
+        color:
+            Theme.textSecondary
 
         opacity: 0.8
 
-        font.family: Theme.fontFamily
+        font.family:
+            Theme.fontFamily
+
         font.pixelSize: 11
+
         font.letterSpacing: 2
+
+        horizontalAlignment:
+            Text.AlignHCenter
 
         Behavior on opacity {
             NumberAnimation {
@@ -278,14 +332,13 @@ ApplicationWindow {
         }
     }
 
-    // ---------------------------------------------------------------
-    // Indicateur de chargement TTS
-    // ---------------------------------------------------------------
-
     Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.horizontalCenter:
+            parent.horizontalCenter
 
-        anchors.bottom: statusPanel.top
+        anchors.bottom:
+            statusPanel.top
+
         anchors.bottomMargin: 18
 
         width: 260
@@ -293,22 +346,29 @@ ApplicationWindow {
 
         radius: 1.5
 
-        color: Theme.panelBorder
+        color:
+            Theme.panelBorder
 
-        visible: assistant.ttsLoading
+        visible:
+            assistant.ttsDownloading
 
         Rectangle {
             id: loadingBar
 
             height: parent.height
-            width: parent.width * 0.25
 
-            radius: parent.radius
+            width:
+                parent.width * 0.25
 
-            color: Theme.colorListening
+            radius:
+                parent.radius
+
+            color:
+                Theme.colorListening
 
             SequentialAnimation on x {
-                loops: Animation.Infinite
+                loops:
+                    Animation.Infinite
 
                 NumberAnimation {
                     from: 0
@@ -319,7 +379,8 @@ ApplicationWindow {
 
                     duration: 1100
 
-                    easing.type: Easing.InOutQuad
+                    easing.type:
+                        Easing.InOutQuad
                 }
 
                 NumberAnimation {
@@ -331,21 +392,21 @@ ApplicationWindow {
 
                     duration: 1100
 
-                    easing.type: Easing.InOutQuad
+                    easing.type:
+                        Easing.InOutQuad
                 }
             }
         }
     }
 
-    // ---------------------------------------------------------------
-    // Bandeau de statut
-    // ---------------------------------------------------------------
-
     StatusPanel {
         id: statusPanel
 
-        anchors.bottom: parent.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom:
+            parent.bottom
+
+        anchors.horizontalCenter:
+            parent.horizontalCenter
 
         anchors.bottomMargin: 40
 

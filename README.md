@@ -1,4 +1,4 @@
-![T.A.R.S.](public/tars-banner.png)
+![T.A.R.S.](assets/tars-banner.png)
 
 # **T.A.R.S.**
 
@@ -27,5 +27,5 @@ pip install -r requirements.txt
 ## Start
 
 ```bash
-python app.py
+python src/app.py
 ```

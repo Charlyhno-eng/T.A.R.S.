@@ -17,27 +17,9 @@ class TTSService(QObject):
     """
     Service métier TTS de T.A.R.S.
 
-    Responsabilités :
+    Le moteur vocal est installé explicitement par l'utilisateur.
 
-    - initialiser le moteur vocal en arrière-plan ;
-    - transmettre les informations de chargement ;
-    - générer les fichiers audio ;
-    - maintenir l'état de génération et de lecture ;
-    - ne jamais bloquer le thread Qt principal.
-
-    Ce service ne connaît pas l'implémentation réelle du moteur vocal.
-    Il communique uniquement avec TTSAdapter.
-
-    IMPORTANT :
-
-    La génération du fichier audio et sa lecture sont deux étapes
-    distinctes.
-
-    La génération terminée ne signifie PAS que la phrase est terminée.
-
-    Le service reste donc en état "speaking" jusqu'à ce que la couche
-    d'interface lui signale que MediaPlayer a réellement terminé la
-    lecture du fichier audio.
+    Une fois installé, le moteur peut être chargé hors ligne.
     """
 
     statusChanged = Signal(str)
@@ -47,13 +29,21 @@ class TTSService(QObject):
     speechStarted = Signal()
     speechFinished = Signal(str)
 
-    def __init__(self, parent: QObject | None = None) -> None:
+    installationStarted = Signal()
+    installationFinished = Signal()
+    installationFailed = Signal()
+
+    def __init__(
+        self,
+        parent: QObject | None = None,
+    ) -> None:
         super().__init__(parent)
 
         self._adapter = TTSAdapter()
 
         self._initialized = False
         self._initializing = False
+        self._installing = False
         self._speaking = False
 
         self._lock = threading.Lock()
@@ -67,10 +57,6 @@ class TTSService(QObject):
             exist_ok=True,
         )
 
-    # ==================================================================
-    # État
-    # ==================================================================
-
     @property
     def initialized(self) -> bool:
         with self._lock:
@@ -82,28 +68,33 @@ class TTSService(QObject):
             return self._initializing
 
     @property
+    def installing(self) -> bool:
+        with self._lock:
+            return self._installing
+
+    @property
     def speaking(self) -> bool:
-        """
-        True pendant toute la séquence :
-
-        génération audio
-        +
-        lecture audio
-
-        Le flag n'est remis à False qu'après la fin réelle de la
-        lecture audio.
-        """
         with self._lock:
             return self._speaking
 
-    # ==================================================================
-    # Initialisation
-    # ==================================================================
+    @property
+    def installed(self) -> bool:
+        return self._adapter.installed
 
     def initialize_async(self) -> None:
         """
-        Initialise le moteur vocal dans un thread Python séparé.
+        Charge automatiquement le moteur uniquement s'il a déjà
+        été installé auparavant.
+
+        Aucun téléchargement n'est déclenché ici.
         """
+
+        if not self.installed:
+            self.statusChanged.emit(
+                "Moteur vocal non installé."
+            )
+            self.stateChanged.emit("not_installed")
+            return
 
         with self._lock:
             if self._initialized or self._initializing:
@@ -112,9 +103,8 @@ class TTSService(QObject):
             self._initializing = True
 
         self.stateChanged.emit("loading")
-
         self.statusChanged.emit(
-            "Préparation du moteur vocal..."
+            "Chargement du moteur vocal local..."
         )
 
         thread = threading.Thread(
@@ -128,7 +118,7 @@ class TTSService(QObject):
     def _initialize_worker(self) -> None:
         try:
             logger.info(
-                "[T.A.R.S.][TTS] Initialisation du moteur..."
+                "[T.A.R.S.][TTS] Initialisation locale..."
             )
 
             self._adapter.initialize(
@@ -139,44 +129,112 @@ class TTSService(QObject):
                 self._initialized = True
 
             self.stateChanged.emit("ready")
-
             self.statusChanged.emit(
                 "Moteur vocal prêt."
             )
 
             logger.info(
-                "[T.A.R.S.][TTS] Moteur vocal prêt."
+                "[T.A.R.S.][TTS] Moteur vocal local prêt."
             )
 
         except Exception as exc:
             logger.exception(
-                "[T.A.R.S.][TTS] Échec du chargement"
+                "[T.A.R.S.][TTS] Échec du chargement local."
             )
 
             with self._lock:
                 self._initialized = False
 
-            message = str(exc)
-
             self.stateChanged.emit("error")
-
-            self.errorOccurred.emit(
-                message
-            )
-
+            self.errorOccurred.emit(str(exc))
             self.statusChanged.emit(
-                "Impossible de charger le moteur vocal."
+                "Impossible de charger le moteur vocal local."
             )
 
         finally:
             with self._lock:
                 self._initializing = False
 
-    # ==================================================================
-    # Statut provider
-    # ==================================================================
+    @Slot()
+    def download(self) -> None:
+        """
+        Lance l'installation du moteur vocal.
 
-    def _on_provider_status(self, message: str) -> None:
+        Cette opération nécessite Internet uniquement la première fois.
+        """
+
+        with self._lock:
+            if self._installing:
+                return
+
+            if self._speaking:
+                return
+
+            self._installing = True
+
+        self.installationStarted.emit()
+
+        self.stateChanged.emit("downloading")
+        self.statusChanged.emit(
+            "Téléchargement du moteur vocal..."
+        )
+
+        thread = threading.Thread(
+            target=self._download_worker,
+            name="TARS-TTS-Download",
+            daemon=True,
+        )
+
+        thread.start()
+
+    def _download_worker(self) -> None:
+        try:
+            logger.info(
+                "[T.A.R.S.][TTS] Début du téléchargement."
+            )
+
+            self._adapter.download(
+                on_status=self._on_provider_status,
+            )
+
+            with self._lock:
+                self._initialized = True
+
+            logger.info(
+                "[T.A.R.S.][TTS] Téléchargement terminé."
+            )
+
+            self.installationFinished.emit()
+
+            self.stateChanged.emit("ready")
+            self.statusChanged.emit(
+                "Moteur vocal installé. T.A.R.S. fonctionne hors ligne."
+            )
+
+        except Exception as exc:
+            logger.exception(
+                "[T.A.R.S.][TTS] Échec du téléchargement."
+            )
+
+            with self._lock:
+                self._initialized = False
+
+            self.installationFailed.emit()
+            self.errorOccurred.emit(str(exc))
+
+            self.stateChanged.emit("not_installed")
+            self.statusChanged.emit(
+                "Échec du téléchargement du moteur vocal."
+            )
+
+        finally:
+            with self._lock:
+                self._installing = False
+
+    def _on_provider_status(
+        self,
+        message: str,
+    ) -> None:
         logger.info(
             "[T.A.R.S.][TTS] %s",
             message,
@@ -184,24 +242,11 @@ class TTSService(QObject):
 
         self.statusChanged.emit(message)
 
-    # ==================================================================
-    # Génération vocale
-    # ==================================================================
-
     @Slot(str)
-    def speak(self, text: str) -> None:
-        """
-        Lance la génération audio.
-
-        La génération est réalisée dans un thread séparé.
-
-        IMPORTANT :
-
-        _speaking reste True après la génération du WAV.
-        Il sera remis à False uniquement lorsque QML signalera que
-        la lecture audio est réellement terminée.
-        """
-
+    def speak(
+        self,
+        text: str,
+    ) -> None:
         text = text.strip()
 
         if not text:
@@ -210,19 +255,16 @@ class TTSService(QObject):
         with self._lock:
             if not self._initialized:
                 should_reject = True
-
             elif self._speaking:
                 should_reject = True
-
             else:
                 should_reject = False
                 self._speaking = True
 
         if should_reject:
             self.statusChanged.emit(
-                "Le moteur vocal est encore en préparation."
+                "Le moteur vocal n'est pas disponible."
             )
-
             return
 
         self.stateChanged.emit("speaking")
@@ -237,7 +279,10 @@ class TTSService(QObject):
 
         thread.start()
 
-    def _speak_worker(self, text: str) -> None:
+    def _speak_worker(
+        self,
+        text: str,
+    ) -> None:
         audio_path = (
             self._audio_directory
             / f"tars_{uuid.uuid4().hex}.wav"
@@ -263,40 +308,19 @@ class TTSService(QObject):
                 generated_path,
             )
 
-            # ----------------------------------------------------------
-            # IMPORTANT
-            # ----------------------------------------------------------
-            #
-            # Ici, la génération est terminée MAIS la phrase n'est
-            # PAS encore terminée.
-            #
-            # Le fichier va maintenant être lu par MediaPlayer.
-            #
-            # On NE fait donc surtout PAS :
-            #
-            #     self._speaking = False
-            #     self.stateChanged.emit("ready")
-            #
-            # Ces actions seront effectuées uniquement après le signal
-            # de fin de lecture provenant de QML.
-            # ----------------------------------------------------------
-
             self.speechFinished.emit(
                 str(generated_path)
             )
 
         except Exception as exc:
             logger.exception(
-                "[T.A.R.S.][TTS] Erreur de génération"
+                "[T.A.R.S.][TTS] Erreur de génération."
             )
 
             with self._lock:
                 self._speaking = False
 
-            self.errorOccurred.emit(
-                str(exc)
-            )
-
+            self.errorOccurred.emit(str(exc))
             self.statusChanged.emit(
                 "Erreur lors de la génération audio."
             )
@@ -304,17 +328,10 @@ class TTSService(QObject):
             if self.initialized:
                 self.stateChanged.emit("ready")
 
-    # ==================================================================
-    # Fin réelle de la lecture
-    # ==================================================================
-
     @Slot()
     def playback_finished(self) -> None:
         """
-        Signale que MediaPlayer vient réellement de terminer la
-        lecture du fichier audio.
-
-        Cette méthode constitue la véritable fin d'une prise de parole.
+        Appelé lorsque MediaPlayer a réellement terminé la lecture.
         """
 
         with self._lock:
@@ -333,18 +350,9 @@ class TTSService(QObject):
 
         self.stateChanged.emit("ready")
 
-    # ==================================================================
-    # Arrêt
-    # ==================================================================
-
     def shutdown(self) -> None:
-        """
-        Arrête proprement le provider TTS.
-        """
-
         try:
             self._adapter.shutdown()
-
         except Exception:
             logger.exception(
                 "[T.A.R.S.][TTS] Erreur lors de l'arrêt."
