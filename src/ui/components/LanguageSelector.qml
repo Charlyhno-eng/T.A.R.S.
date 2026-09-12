@@ -11,7 +11,7 @@ Item {
 
     signal languageSelected(string language)
 
-    width: 118
+    width: 92
     height: 42
     z: 20
 
@@ -44,41 +44,7 @@ Item {
         Row {
             anchors.centerIn: parent
 
-            spacing: 8
-
-            Rectangle {
-                width: 20
-                height: 20
-
-                radius: 10
-
-                color: Qt.rgba(
-                    Theme.colorIdle.r,
-                    Theme.colorIdle.g,
-                    Theme.colorIdle.b,
-                    0.14
-                )
-
-                border.width: 1
-                border.color: Qt.rgba(
-                    Theme.colorIdle.r,
-                    Theme.colorIdle.g,
-                    Theme.colorIdle.b,
-                    0.55
-                )
-
-                Text {
-                    anchors.centerIn: parent
-
-                    text: "A"
-
-                    color: Theme.colorIdle
-
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 11
-                    font.bold: true
-                }
-            }
+            spacing: 7
 
             Text {
                 text: root.language === "en" ? "EN" : "FR"
@@ -86,7 +52,7 @@ Item {
                 color: Theme.textPrimary
 
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: 13
                 font.bold: true
                 font.letterSpacing: 1.5
             }
@@ -121,7 +87,7 @@ Item {
         anchors.right: parent.right
         anchors.topMargin: 8
 
-        width: 154
+        width: 140
         height: languageColumn.implicitHeight + 12
 
         visible: root.expanded
@@ -147,8 +113,8 @@ Item {
 
             Repeater {
                 model: [
-                    { code: "fr", label: "FRANÇAIS" },
-                    { code: "en", label: "ENGLISH" }
+                    { code: "fr", label: "Français" },
+                    { code: "en", label: "English" }
                 ]
 
                 delegate: Rectangle {
@@ -182,27 +148,16 @@ Item {
                         }
 
                         Text {
-                            text: modelData.code === "en" ? "EN" : "FR"
-
-                            color: root.language === modelData.code
-                                ? Theme.colorIdle
-                                : Theme.textSecondary
-
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 10
-                            font.bold: true
-                        }
-
-                        Text {
-                            width: 78
+                            width: 98
 
                             text: modelData.label
 
-                            color: Theme.textPrimary
+                            color: root.language === modelData.code
+                                ? Theme.colorIdle
+                                : Theme.textPrimary
 
                             font.family: Theme.fontFamily
-                            font.pixelSize: 11
-                            font.letterSpacing: 1
+                            font.pixelSize: 12
                         }
 
                         Text {
