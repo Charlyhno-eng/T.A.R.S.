@@ -51,6 +51,7 @@ class TTSService(QObject):
             parents=True,
             exist_ok=True,
         )
+        self._audio_path: Path | None = None
 
     @property
     def initialized(self) -> bool:
@@ -132,6 +133,7 @@ class TTSService(QObject):
 
             with self._lock:
                 self._initialized = True
+                self._initializing = False
 
             self.stateChanged.emit("ready")
             self.statusChanged.emit(
@@ -149,16 +151,13 @@ class TTSService(QObject):
 
             with self._lock:
                 self._initialized = False
+                self._initializing = False
 
             self.stateChanged.emit("error")
             self.errorOccurred.emit(str(exc))
             self.statusChanged.emit(
                 "Impossible de charger le moteur vocal local."
             )
-
-        finally:
-            with self._lock:
-                self._initializing = False
 
     @Slot()
     def download(self) -> None:
@@ -200,6 +199,7 @@ class TTSService(QObject):
 
             with self._lock:
                 self._initialized = True
+                self._installing = False
 
             logger.info(
                 "[T.A.R.S.][TTS] Téléchargement terminé."
@@ -219,6 +219,7 @@ class TTSService(QObject):
 
             with self._lock:
                 self._initialized = False
+                self._installing = False
 
             self.installationFailed.emit()
             self.errorOccurred.emit(str(exc))
@@ -227,10 +228,6 @@ class TTSService(QObject):
             self.statusChanged.emit(
                 "Échec du téléchargement du moteur vocal."
             )
-
-        finally:
-            with self._lock:
-                self._installing = False
 
     def _on_provider_status(
         self,
@@ -284,10 +281,7 @@ class TTSService(QObject):
         self,
         text: str,
     ) -> None:
-        audio_path = (
-            self._audio_directory
-            / f"tars_{uuid.uuid4().hex}.wav"
-        )
+        audio_path = self._audio_directory / f"tars_{uuid.uuid4().hex}.wav"
 
         try:
             logger.info(
@@ -303,6 +297,9 @@ class TTSService(QObject):
                 text=text,
                 output_path=audio_path,
             )
+
+            with self._lock:
+                self._audio_path = generated_path
 
             logger.info(
                 "[T.A.R.S.][TTS] Audio généré : %s",
@@ -321,6 +318,8 @@ class TTSService(QObject):
             with self._lock:
                 self._speaking = False
 
+            audio_path.unlink(missing_ok=True)
+
             self.errorOccurred.emit(str(exc))
             self.statusChanged.emit(
                 "Erreur lors de la génération audio."
@@ -338,6 +337,8 @@ class TTSService(QObject):
                 return
 
             self._speaking = False
+            audio_path = self._audio_path
+            self._audio_path = None
 
         logger.info(
             "[T.A.R.S.][TTS] Lecture audio terminée."
@@ -348,6 +349,8 @@ class TTSService(QObject):
         )
 
         self.stateChanged.emit("ready")
+        if audio_path is not None:
+            audio_path.unlink(missing_ok=True)
 
     def shutdown(self) -> None:
         try:
@@ -360,5 +363,9 @@ class TTSService(QObject):
         with self._lock:
             self._initialized = False
             self._speaking = False
+            audio_path = self._audio_path
+            self._audio_path = None
 
+        if audio_path is not None:
+            audio_path.unlink(missing_ok=True)
         self.stateChanged.emit("idle")

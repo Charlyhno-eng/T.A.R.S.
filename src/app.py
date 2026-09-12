@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
@@ -21,6 +21,14 @@ def configure_logging() -> None:
         level=logging.INFO,
         format="%(levelname)s:%(name)s:%(message)s",
     )
+    library_loggers = (
+        "httpx",
+        "huggingface_hub",
+        "nv_one_logger",
+        "pocket_tts",
+    )
+    for logger_name in library_loggers:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 
 def main() -> int:
@@ -55,6 +63,7 @@ def main() -> int:
 
         return -1
 
+    QTimer.singleShot(0, assistant.start)
     exit_code = app.exec()
 
     assistant.shutdown()

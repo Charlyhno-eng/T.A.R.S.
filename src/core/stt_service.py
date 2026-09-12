@@ -71,15 +71,15 @@ class STTService(QObject):
             self._adapter.initialize(on_status=self.statusChanged.emit)
             with self._lock:
                 self._initialized = True
+                self._initializing = False
             self.stateChanged.emit("ready")
             self.statusChanged.emit("Parakeet est prêt.")
         except Exception as exc:
             logger.exception("Échec du chargement local de Parakeet.")
-            self.stateChanged.emit("error")
-            self.errorOccurred.emit(str(exc))
-        finally:
             with self._lock:
                 self._initializing = False
+            self.stateChanged.emit("error")
+            self.errorOccurred.emit(str(exc))
 
     def download(self) -> None:
         with self._lock:
@@ -99,17 +99,17 @@ class STTService(QObject):
             self._adapter.download(on_status=self.statusChanged.emit)
             with self._lock:
                 self._initialized = True
+                self._installing = False
             self.installationFinished.emit()
             self.stateChanged.emit("ready")
             self.statusChanged.emit("Parakeet est installé et disponible hors ligne.")
         except Exception as exc:
             logger.exception("Échec du téléchargement de Parakeet.")
+            with self._lock:
+                self._installing = False
             self.installationFailed.emit()
             self.errorOccurred.emit(str(exc))
             self.stateChanged.emit("not_installed")
-        finally:
-            with self._lock:
-                self._installing = False
 
     def transcribe(self, audio_path: Path) -> None:
         with self._lock:
@@ -135,6 +135,7 @@ class STTService(QObject):
             logger.exception("Erreur de transcription Parakeet.")
             self.errorOccurred.emit(str(exc))
         finally:
+            audio_path.unlink(missing_ok=True)
             with self._lock:
                 self._transcribing = False
             if self.initialized:

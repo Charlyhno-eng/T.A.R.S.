@@ -5,8 +5,8 @@ Item {
     id: root
 
     property string sphereState: "idle"
+    property bool animationsEnabled: true
     property color activeColor: Theme.stateColor(sphereState)
-    property real corePulse: 0.0
 
     signal pressed()
     signal released()
@@ -14,10 +14,6 @@ Item {
     implicitWidth: 340
     implicitHeight: 340
     scale: 1.0
-
-    onSphereStateChanged: {
-        activeColor = Theme.stateColor(sphereState)
-    }
 
     Behavior on activeColor {
         ColorAnimation {
@@ -30,24 +26,6 @@ Item {
             id: hoverAnim
             duration: Theme.animFast
             easing.type: Easing.OutQuad
-        }
-    }
-
-    SequentialAnimation on corePulse {
-        loops: Animation.Infinite
-
-        NumberAnimation {
-            from: 0.0
-            to: 1.0
-            duration: Theme.animSlow
-            easing.type: Easing.InOutSine
-        }
-
-        NumberAnimation {
-            from: 1.0
-            to: 0.0
-            duration: Theme.animSlow
-            easing.type: Easing.InOutSine
         }
     }
 
@@ -80,15 +58,12 @@ Item {
         width: root.width * 0.92
         height: width
 
-        property real angle: 0
-
-        onAngleChanged: requestPaint()
-
-        NumberAnimation on angle {
+        NumberAnimation on rotation {
             from: 0
             to: 360
             duration: 9000
             loops: Animation.Infinite
+            running: root.animationsEnabled
         }
 
         onPaint: {
@@ -98,7 +73,6 @@ Item {
             ctx.save()
 
             ctx.translate(width / 2, height / 2)
-            ctx.rotate(angle * Math.PI / 180)
 
             ctx.strokeStyle = root.activeColor
             ctx.globalAlpha = 0.55
@@ -138,15 +112,12 @@ Item {
         width: root.width * 0.74
         height: width
 
-        property real angle: 360
-
-        onAngleChanged: requestPaint()
-
-        NumberAnimation on angle {
+        NumberAnimation on rotation {
             from: 360
             to: 0
             duration: 6000
             loops: Animation.Infinite
+            running: root.animationsEnabled
         }
 
         onPaint: {
@@ -156,7 +127,6 @@ Item {
             ctx.save()
 
             ctx.translate(width / 2, height / 2)
-            ctx.rotate(angle * Math.PI / 180)
 
             ctx.strokeStyle = root.activeColor
             ctx.globalAlpha = 0.35
@@ -196,6 +166,25 @@ Item {
         width: root.width * 0.52
         height: width
 
+        SequentialAnimation on scale {
+            loops: Animation.Infinite
+            running: root.animationsEnabled
+
+            NumberAnimation {
+                from: 0.98
+                to: 1.02
+                duration: Theme.animSlow
+                easing.type: Easing.InOutSine
+            }
+
+            NumberAnimation {
+                from: 1.02
+                to: 0.98
+                duration: Theme.animSlow
+                easing.type: Easing.InOutSine
+            }
+        }
+
         onPaint: {
             var ctx = getContext("2d")
 
@@ -206,8 +195,6 @@ Item {
             var cx = w / 2
             var cy = h / 2
             var r = w / 2
-
-            var glow = 0.75 + root.corePulse * 0.25
 
             var grad = ctx.createRadialGradient(
                 cx - r * 0.3,
@@ -220,7 +207,7 @@ Item {
 
             grad.addColorStop(
                 0.0,
-                Qt.rgba(1, 1, 1, 0.9 * glow)
+                Qt.rgba(1, 1, 1, 0.9)
             )
 
             grad.addColorStop(
@@ -288,10 +275,6 @@ Item {
 
         Connections {
             target: root
-
-            function onCorePulseChanged() {
-                core.requestPaint()
-            }
 
             function onActiveColorChanged() {
                 core.requestPaint()

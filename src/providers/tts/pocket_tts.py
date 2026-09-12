@@ -2,12 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Callable
-
-import scipy.io.wavfile
-import yaml
-from huggingface_hub import hf_hub_download
-from pocket_tts import TTSModel
+from typing import Any, Callable
 
 
 logger = logging.getLogger("TARS.PocketTTS")
@@ -34,7 +29,7 @@ class PocketTTSProvider:
     def __init__(self, data_directory: Path) -> None:
         self._data_directory = data_directory
         self._resources_directory = data_directory / "resources"
-        self._model: TTSModel | None = None
+        self._model: Any | None = None
         self._voice_state = None
         self._loaded_language: str | None = None
 
@@ -54,6 +49,8 @@ class PocketTTSProvider:
         language: str,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
+        from huggingface_hub import hf_hub_download
+
         info = self._language_info(language)
         pocket_language = info["pocket_language"]
         self._resources_directory.mkdir(parents=True, exist_ok=True)
@@ -100,6 +97,8 @@ class PocketTTSProvider:
             )
         if on_status:
             on_status("Chargement du modèle Pocket TTS local...")
+        from pocket_tts import TTSModel
+
         self._model = TTSModel.load_model(config=self._config_path(language))
         if on_status:
             on_status("Préparation de la voix locale...")
@@ -117,6 +116,10 @@ class PocketTTSProvider:
     def generate(self, text: str, output_path: Path) -> Path:
         if not self.initialized or self._model is None:
             raise RuntimeError("Pocket TTS n'est pas initialisé.")
+        import scipy.io.wavfile
+        import torch
+
+        torch.set_num_threads(1)
         audio = self._model.generate_audio(self._voice_state, text.strip())
         output_path.parent.mkdir(parents=True, exist_ok=True)
         scipy.io.wavfile.write(
@@ -155,6 +158,7 @@ class PocketTTSProvider:
 
     def _write_local_config(self, language: str) -> None:
         import pocket_tts
+        import yaml
 
         pocket_language = self._language_info(language)["pocket_language"]
         source = (

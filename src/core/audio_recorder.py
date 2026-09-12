@@ -62,12 +62,7 @@ class AudioRecorder(QObject):
         if not self.recording:
             raise RuntimeError("Aucun enregistrement n'est en cours.")
 
-        assert self._source is not None
-        self._source.stop()
-        self._source.deleteLater()
-        self._source = None
-        self._device = None
-
+        self._close_source()
         payload = b"".join(self._chunks)
         self._chunks = []
         if len(payload) < self.SAMPLE_RATE // 5 * 2:
@@ -83,3 +78,17 @@ class AudioRecorder(QObject):
             output.writeframes(payload)
         logger.info("Audio microphone écrit : %s", output_path)
         return output_path
+
+    def cancel(self) -> None:
+        """Stop recording and discard captured audio."""
+        if not self.recording:
+            return
+        self._close_source()
+        self._chunks = []
+
+    def _close_source(self) -> None:
+        assert self._source is not None
+        self._source.stop()
+        self._source.deleteLater()
+        self._source = None
+        self._device = None

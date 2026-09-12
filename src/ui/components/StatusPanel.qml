@@ -10,10 +10,6 @@ Column {
 
     spacing: 14
 
-    onSphereStateChanged: {
-        accent = Theme.stateColor(sphereState)
-    }
-
     Behavior on accent {
         ColorAnimation {
             duration: Theme.animMedium

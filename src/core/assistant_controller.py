@@ -84,7 +84,7 @@ class AssistantController(QObject):
         self._stt_loading = False
         self._models_downloading = False
         self._download_stt_after_tts = False
-        self._startup_stt_pending = False
+        self._started = False
 
         self._tts_service = TTSService(parent=self, language=self._language)
         self._stt_service = STTService(parent=self, language=self._language)
@@ -105,14 +105,25 @@ class AssistantController(QObject):
         self._stt_service.errorOccurred.connect(self._on_stt_error)
         self._stt_service.transcriptionReady.connect(self._on_transcription_ready)
         self._stt_service.installationFinished.connect(self._on_stt_installed)
-        self._stt_service.installationFailed.connect(self._on_model_installation_failed)
+        self._stt_service.installationFailed.connect(
+            self._on_model_installation_failed
+        )
 
+    def start(self) -> None:
+        """Start local model loading after the first UI event."""
+        if self._started:
+            return
+        self._started = True
         if self.modelsInstalled:
             self._set_status("Chargement des modèles locaux...")
-            self._startup_stt_pending = True
+            self._stt_service.initialize_async()
             self._tts_service.initialize_async()
         else:
             self._set_status("Modèles vocaux non installés.")
+            if self._tts_service.installed:
+                self._tts_service.initialize_async()
+            if self._stt_service.installed:
+                self._stt_service.initialize_async()
 
     @Property(str, notify=stateChanged)
     def state(self) -> str:
@@ -170,11 +181,10 @@ class AssistantController(QObject):
             return
 
         self.modelsInstalledChanged.emit()
-        self.modelsReadyChanged.emit()
         if self._tts_service.installed:
-            self._startup_stt_pending = True
             self._set_status("Chargement du moteur vocal local...")
             self._tts_service.initialize_async()
+            self._stt_service.initialize_async()
         else:
             self._set_status(
                 "Voix anglaise non installée. Cliquez sur télécharger."
@@ -189,11 +199,10 @@ class AssistantController(QObject):
             return
         if self.modelsInstalled:
             if not self.modelsReady:
-                if self._tts_service.initialized:
-                    self._set_status("Chargement de Parakeet sur CPU...")
+                self._set_status("Chargement des modèles locaux...")
+                if not self._stt_service.initialized:
                     self._stt_service.initialize_async()
-                else:
-                    self._startup_stt_pending = True
+                if not self._tts_service.initialized:
                     self._tts_service.initialize_async()
             return
 
@@ -204,12 +213,16 @@ class AssistantController(QObject):
 
         if not self._tts_service.installed:
             self._set_status("Installation locale de Pocket TTS...")
+            if self._stt_service.installed:
+                self._stt_service.initialize_async()
             self._tts_service.download()
+        elif self._download_stt_after_tts:
+            if not self._tts_service.initialized:
+                self._tts_service.initialize_async()
+            self._start_stt_download()
         elif not self._tts_service.initialized:
             self._set_status("Chargement local de Pocket TTS...")
             self._tts_service.initialize_async()
-        elif self._download_stt_after_tts:
-            self._start_stt_download()
         else:
             self._finish_model_installation()
 
@@ -253,41 +266,42 @@ class AssistantController(QObject):
         self._set_state("idle")
 
     def _on_tts_state_changed(self, state: str) -> None:
+        loading_before = self.modelsLoading
+        ready_before = self.modelsReady
         if state == "loading":
             self._tts_loading, self._tts_ready = True, False
         elif state == "ready":
             self._tts_loading, self._tts_ready = False, True
         elif state in ("error", "not_installed"):
             self._tts_loading, self._tts_ready = False, False
-            self._startup_stt_pending = False
-        self.modelsLoadingChanged.emit()
-        self.modelsReadyChanged.emit()
-        self.modelsInstalledChanged.emit()
+        if loading_before != self.modelsLoading:
+            self.modelsLoadingChanged.emit()
+        if ready_before != self.modelsReady:
+            self.modelsReadyChanged.emit()
 
-        if state == "ready" and self._startup_stt_pending:
-            self._startup_stt_pending = False
-            self._set_status(
-                "Pocket TTS prêt. Chargement de Parakeet sur CPU..."
-            )
-            self._stt_service.initialize_async()
-        elif (
+        if (
             state == "ready"
             and self._models_downloading
             and self._download_stt_after_tts
             and not self._stt_service.installed
         ):
             self._start_stt_download()
+        elif state == "ready" and self.modelsReady:
+            self._set_status("Modèles vocaux locaux prêts.")
 
     def _on_stt_state_changed(self, state: str) -> None:
+        loading_before = self.modelsLoading
+        ready_before = self.modelsReady
         if state == "loading":
             self._stt_loading, self._stt_ready = True, False
         elif state == "ready":
             self._stt_loading, self._stt_ready = False, True
         elif state in ("error", "not_installed"):
             self._stt_loading, self._stt_ready = False, False
-        self.modelsLoadingChanged.emit()
-        self.modelsReadyChanged.emit()
-        self.modelsInstalledChanged.emit()
+        if loading_before != self.modelsLoading:
+            self.modelsLoadingChanged.emit()
+        if ready_before != self.modelsReady:
+            self.modelsReadyChanged.emit()
         if state == "ready" and self.modelsReady:
             self._set_status("Modèles vocaux locaux prêts.")
 
@@ -310,7 +324,6 @@ class AssistantController(QObject):
     def _finish_model_installation(self) -> None:
         self._models_downloading = False
         self.modelsDownloadingChanged.emit()
-        self.modelsInstalledChanged.emit()
         self._set_status("Modèles installés. T.A.R.S. est utilisable hors ligne.")
         self._set_state("idle")
 
@@ -367,7 +380,7 @@ class AssistantController(QObject):
     def shutdown(self) -> None:
         if self._recorder.recording:
             try:
-                self._recorder.stop()
+                self._recorder.cancel()
             except Exception:
                 logger.exception("Erreur lors de l'arrêt du microphone.")
         self._tts_service.shutdown()

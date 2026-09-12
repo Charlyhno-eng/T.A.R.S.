@@ -7,6 +7,7 @@ Item {
     property color particleColor: Theme.colorIdle
     property int count: 40
     property real radius: 170
+    property bool animationsEnabled: true
 
     implicitWidth: radius * 2 + 20
     implicitHeight: implicitWidth
@@ -23,6 +24,7 @@ Item {
             from: 0; to: 360
             duration: 42000
             loops: Animation.Infinite
+            running: root.animationsEnabled
         }
 
         Repeater {

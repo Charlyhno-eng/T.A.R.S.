@@ -321,6 +321,7 @@ ApplicationWindow {
             anchors.centerIn: parent
 
             radius: 175
+            animationsEnabled: window.active
 
             particleColor:
                 Theme.stateColor(
@@ -335,6 +336,8 @@ ApplicationWindow {
 
             sphereState:
                 window.assistantState
+
+            animationsEnabled: window.active
 
             onPressed: assistant.startListening()
             onReleased: assistant.stopListening()
@@ -446,6 +449,10 @@ ApplicationWindow {
             SequentialAnimation on x {
                 loops:
                     Animation.Infinite
+
+                running:
+                    assistant.modelsDownloading &&
+                    window.active
 
                 NumberAnimation {
                     from: 0
