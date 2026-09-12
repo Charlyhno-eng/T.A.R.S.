@@ -221,7 +221,8 @@ ApplicationWindow {
         Text {
             anchors.centerIn: parent
             text: assistant.modelsDownloading ? "..." :
-                (assistant.modelsInstalled ? "✓" : "↓")
+                (assistant.modelsReady ? "✓" :
+                    (assistant.modelsInstalled ? "…" : "↓"))
             color: assistant.modelsDownloading
                 ? Theme.colorListening : Theme.textPrimary
             font.family: Theme.fontFamily
@@ -240,13 +241,17 @@ ApplicationWindow {
 
         ToolTip.visible: downloadMouse.containsMouse
         ToolTip.delay: 500
-        ToolTip.text: assistant.modelsInstalled
+        ToolTip.text: assistant.modelsReady
             ? (assistant.language === "en"
-                ? "Pocket TTS, Parakeet and Needle 2 are installed locally"
-                : "Pocket TTS, Parakeet et Needle 2 sont installés localement")
-            : (assistant.language === "en"
-                ? "Download Pocket TTS, Parakeet and Needle 2"
-                : "Télécharger Pocket TTS, Parakeet et Needle 2")
+                ? "Pocket TTS, Parakeet and Needle 2 are ready"
+                : "Pocket TTS, Parakeet et Needle 2 sont prêts")
+            : (assistant.modelsInstalled
+                ? (assistant.language === "en"
+                    ? "Loading Pocket TTS, Parakeet and Needle 2"
+                    : "Chargement de Pocket TTS, Parakeet et Needle 2")
+                : (assistant.language === "en"
+                    ? "Download Pocket TTS, Parakeet and Needle 2"
+                    : "Télécharger Pocket TTS, Parakeet et Needle 2"))
     }
 
     LanguageSelector {

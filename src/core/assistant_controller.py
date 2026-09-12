@@ -98,6 +98,7 @@ class AssistantController(QObject):
         self._stt_loading = False
         self._llm_loading = False
         self._models_downloading = False
+        self._downloads_complete = False
         self._download_queue: list[str] = []
         self._started = False
 
@@ -320,8 +321,7 @@ class AssistantController(QObject):
         if ready_before != self.modelsReady:
             self.modelsReadyChanged.emit()
 
-        if state == "ready" and self.modelsReady:
-            self._set_status("Modèles locaux prêts.")
+        self._update_models_ready_status(state)
 
     def _on_stt_state_changed(self, state: str) -> None:
         loading_before = self.modelsLoading
@@ -336,8 +336,7 @@ class AssistantController(QObject):
             self.modelsLoadingChanged.emit()
         if ready_before != self.modelsReady:
             self.modelsReadyChanged.emit()
-        if state == "ready" and self.modelsReady:
-            self._set_status("Modèles locaux prêts.")
+        self._update_models_ready_status(state)
 
     def _on_llm_state_changed(self, state: str) -> None:
         loading_before = self.modelsLoading
@@ -352,8 +351,7 @@ class AssistantController(QObject):
             self.modelsLoadingChanged.emit()
         if ready_before != self.modelsReady:
             self.modelsReadyChanged.emit()
-        if state == "ready" and self.modelsReady:
-            self._set_status("Modèles locaux prêts.")
+        self._update_models_ready_status(state)
 
     def _on_tts_installed(self) -> None:
         self.modelsInstalledChanged.emit()
@@ -383,13 +381,30 @@ class AssistantController(QObject):
             self._llm_service.download()
 
     def _finish_model_installation(self) -> None:
+        self._downloads_complete = True
+        self._set_status("Chargement des modèles locaux...")
+        self._complete_model_loading()
+
+    def _update_models_ready_status(self, state: str) -> None:
+        if state != "ready" or not self.modelsReady:
+            return
+        if self._models_downloading:
+            self._complete_model_loading()
+            return
+        self._set_status("Modèles locaux prêts.")
+
+    def _complete_model_loading(self) -> None:
+        if not self._downloads_complete or not self.modelsReady:
+            return
+        self._downloads_complete = False
         self._models_downloading = False
         self.modelsDownloadingChanged.emit()
-        self._set_status("Modèles installés. T.A.R.S. est utilisable hors ligne.")
+        self._set_status("Modèles locaux prêts.")
         self._set_state("idle")
 
     def _on_model_installation_failed(self) -> None:
         self._models_downloading = False
+        self._downloads_complete = False
         self._download_queue = []
         self.modelsDownloadingChanged.emit()
         self.modelsInstalledChanged.emit()

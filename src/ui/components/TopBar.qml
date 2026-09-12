@@ -57,7 +57,7 @@ Item {
                     radius: 3.5
 
                     color:
-                        assistant.modelsInstalled
+                        assistant.modelsReady
                             ? Theme.colorListening
                             : Theme.textSecondary
 
@@ -67,13 +67,17 @@ Item {
 
                 Text {
                     text:
-                        assistant.modelsInstalled
+                        assistant.modelsReady
                             ? (assistant.language === "en"
                                 ? "SYSTEM ONLINE"
                                 : "SYSTÈME EN LIGNE")
-                            : (assistant.language === "en"
-                                ? "LOCAL MODELS NOT INSTALLED"
-                                : "MODÈLES LOCAUX NON INSTALLÉS")
+                            : (assistant.modelsInstalled
+                                ? (assistant.language === "en"
+                                    ? "LOADING LOCAL MODELS"
+                                    : "CHARGEMENT DES MODÈLES LOCAUX")
+                                : (assistant.language === "en"
+                                    ? "LOCAL MODELS NOT INSTALLED"
+                                    : "MODÈLES LOCAUX NON INSTALLÉS"))
 
                     color: Theme.textSecondary
 
