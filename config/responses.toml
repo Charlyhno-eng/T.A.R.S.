@@ -1,0 +1,50 @@
+[responses.fr]
+greeting = "Bonjour. Comment puis-je vous aider ?"
+wellbeing = "Je vais bien, merci. Que puis-je faire pour vous ?"
+identity = "Je suis T,A,R,S. Votre assistant local."
+thanks = "Avec plaisir."
+help = "Je suis prêt à vous aider."
+acknowledge = "J'ai compris. Que souhaitez-vous faire ?"
+unknown = "Je n'ai pas encore la réponse. Pouvez-vous reformuler ?"
+time = "Il est {time}."
+date = "Nous sommes le {date}."
+
+[responses.en]
+greeting = "Hello. How can I help you?"
+wellbeing = "I am doing well, thank you. What can I do for you?"
+identity = "I am T,A,R,S. Your local assistant."
+thanks = "You are welcome."
+help = "I am ready to help you."
+acknowledge = "I understand. What would you like to do?"
+unknown = "I do not have an answer yet. Could you rephrase that?"
+time = "It is {time}."
+date = "Today's date is {date}."
+
+[intents.greeting]
+words = ["bonjour", "bonsoir", "salut", "coucou", "hello", "hi", "hey", "yo"]
+phrases = ["bonne journee", "bonne soiree", "au revoir", "a bientot", "good morning", "good afternoon", "good evening", "goodbye", "see you"]
+
+[intents.wellbeing]
+phrases = ["comment vas tu", "comment allez vous", "comment ca va", "ca va", "tu vas bien", "vous allez bien", "how are you", "are you well"]
+
+[intents.thanks]
+words = ["merci", "remerc", "thanks", "thank", "appreciate"]
+
+[intents.help]
+words = ["aide", "aider", "assist", "help", "support"]
+phrases = ["que peux tu faire", "que savez vous faire", "comment peux tu m aider", "what can you do", "can you help"]
+
+[intents.time]
+words = ["heure", "horloge", "time", "clock"]
+phrases = ["quelle heure est il", "quel heure est il", "what time is it", "do you have the time"]
+
+[intents.date]
+words = ["date", "jour", "day", "today"]
+phrases = ["quel jour sommes nous", "on est quel jour", "quelle est la date", "what day is it", "what is the date"]
+
+[intents.identity]
+phrases = ["qui es tu", "dis moi qui tu es", "quel est ton nom", "comment tu t appelles", "comment t appelles tu", "tu t appelles comment", "presente toi", "presentez vous", "parle moi de toi", "who are you", "what is your name", "introduce yourself", "tell me about yourself"]
+
+[agents.agent_1]
+aliases = ["agent 1", "agent un", "agent one", "agent numero 1", "agent numero un", "agent premier", "premier agent", "first agent", "number one agent"]
+verbs = ["appel", "contact", "lance", "demande", "parle", "joign", "relation", "transfer", "connect", "join", "call", "reach", "launch", "start", "talk", "speak"]

@@ -39,13 +39,14 @@ python src/app.py
 ```
 
 At the first launch, use the download button in the top-right corner. It installs
-Pocket TTS (French voice Estelle) and Parakeet TDT 0.6B v3 into `~/.tars/`.
-After the installation has completed, normal startup, transcription, and speech
-generation only load these local files and do not require an Internet connection.
+Pocket TTS (French voice Estelle), Parakeet TDT 0.6B v3, and the Needle 2 engine
+into `~/.tars/`. After the installation has completed, normal startup,
+transcription, decision-making, and speech generation only load these local files
+and do not require an Internet connection.
 
 French is the default application language. Select `ENGLISH` from the top-right
 language selector to switch the interface and voice. The first English selection
 offers to download its compact local Pocket TTS voice; the choice is remembered.
 
 Hold the central sphere while speaking; release it to have Parakeet transcribe
-your voice and Pocket TTS repeat the transcription.
+your voice, Needle 2 select a short local response, and Pocket TTS speak it.

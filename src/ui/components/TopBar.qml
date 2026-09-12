@@ -72,8 +72,8 @@ Item {
                                 ? "SYSTEM ONLINE"
                                 : "SYSTÈME EN LIGNE")
                             : (assistant.language === "en"
-                                ? "VOICE MODEL NOT INSTALLED"
-                                : "MODÈLE VOCAL NON INSTALLÉ")
+                                ? "LOCAL MODELS NOT INSTALLED"
+                                : "MODÈLES LOCAUX NON INSTALLÉS")
 
                     color: Theme.textSecondary
 

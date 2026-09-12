@@ -15,17 +15,13 @@ class Settings:
         self._path = Path(__file__).resolve().parents[2] / "config" / "config.toml"
 
     def language(self) -> str:
-        try:
-            with self._path.open("rb") as config_file:
-                data = tomllib.load(config_file)
-            language = data.get("application", {}).get(
-                "language",
-                self.DEFAULT_LANGUAGE,
-            )
-            if language in self.SUPPORTED_LANGUAGES:
-                return language
-        except (OSError, tomllib.TOMLDecodeError, TypeError):
-            pass
+        data = self._read()
+        application = data.get("application", {})
+        if not isinstance(application, dict):
+            return self.DEFAULT_LANGUAGE
+        language = application.get("language", self.DEFAULT_LANGUAGE)
+        if language in self.SUPPORTED_LANGUAGES:
+            return language
         return self.DEFAULT_LANGUAGE
 
     def set_language(self, language: str) -> None:
@@ -53,3 +49,11 @@ class Settings:
             content += f'{separator}[application]\nlanguage = "{language}"\n'
         temporary.write_text(content, encoding="utf-8")
         temporary.replace(self._path)
+
+    def _read(self) -> dict[str, object]:
+        try:
+            with self._path.open("rb") as config_file:
+                data = tomllib.load(config_file)
+        except (OSError, tomllib.TOMLDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}

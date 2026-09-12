@@ -242,11 +242,11 @@ ApplicationWindow {
         ToolTip.delay: 500
         ToolTip.text: assistant.modelsInstalled
             ? (assistant.language === "en"
-                ? "The selected voice and Parakeet are installed locally"
-                : "La voix sélectionnée et Parakeet sont installés localement")
+                ? "Pocket TTS, Parakeet and Needle 2 are installed locally"
+                : "Pocket TTS, Parakeet et Needle 2 sont installés localement")
             : (assistant.language === "en"
-                ? "Download the selected Pocket TTS voice and Parakeet"
-                : "Télécharger la voix Pocket TTS sélectionnée et Parakeet")
+                ? "Download Pocket TTS, Parakeet and Needle 2"
+                : "Télécharger Pocket TTS, Parakeet et Needle 2")
     }
 
     LanguageSelector {
@@ -364,8 +364,8 @@ ApplicationWindow {
 
             if (!assistant.modelsInstalled)
                 return english
-                    ? "DOWNLOAD THE VOICE MODEL TO BEGIN"
-                    : "TÉLÉCHARGEZ LE MODÈLE VOCAL POUR COMMENCER"
+                    ? "DOWNLOAD THE LOCAL MODELS TO BEGIN"
+                    : "TÉLÉCHARGEZ LES MODÈLES LOCAUX POUR COMMENCER"
 
             if (!assistant.modelsReady)
                 return assistant.status
@@ -381,10 +381,10 @@ ApplicationWindow {
 
             if (
                 window.assistantState === "speaking" &&
-                assistant.transcript
+                assistant.response
             ) {
-                return (english ? "TRANSCRIPT: " : "TRANSCRIPTION : ") +
-                    assistant.transcript
+                return (english ? "T.A.R.S.: " : "T.A.R.S. : ") +
+                    assistant.response
             }
 
             return assistant.status

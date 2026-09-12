@@ -2,5 +2,6 @@ PySide6>=6.6
 pocket-tts
 scipy
 huggingface_hub
+cactus-needle
 PyYAML
 nemo_toolkit[asr]
