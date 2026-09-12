@@ -16,7 +16,15 @@ This repository is my personal implementation, but you are free to clone it, mod
 
 ---
 
-## Installation
+## See T.A.R.S. in action
+
+![Interface](assets/tars-interface.png)
+
+---
+
+## Quick start
+
+### Install
 
 ```bash
 python3 -m venv .venv
@@ -24,7 +32,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Start
+### Run
 
 ```bash
 python src/app.py
