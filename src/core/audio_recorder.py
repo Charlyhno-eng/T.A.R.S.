@@ -13,7 +13,7 @@ logger = logging.getLogger("TARS.Recorder")
 
 
 class AudioRecorder(QObject):
-    """Capture microphone mono 16 kHz vers un WAV temporaire pour Parakeet."""
+    """Capture 16 kHz mono microphone audio to a temporary WAV for Parakeet."""
 
     SAMPLE_RATE = 16_000
 

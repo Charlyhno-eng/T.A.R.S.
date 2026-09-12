@@ -1,14 +1,10 @@
 import QtQuick 2.15
 import theme 1.0
 
-// Sphère centrale de l'assistant : cœur en dégradé radial, deux anneaux
-// segmentés qui tournent en sens opposés, halo externe et pulsation.
-// Ce composant ne connaît aucun état métier : il expose juste `sphereState`
-// et les signaux pressé/relâché nécessaires à la capture vocale.
 Item {
     id: root
 
-    property string sphereState: "idle" // idle | listening | thinking | speaking
+    property string sphereState: "idle"
     property color activeColor: Theme.stateColor(sphereState)
     property real corePulse: 0.0
 
@@ -19,19 +15,16 @@ Item {
     implicitHeight: 340
     scale: 1.0
 
-    // Synchronise la couleur avec l'état de la sphère.
     onSphereStateChanged: {
         activeColor = Theme.stateColor(sphereState)
     }
 
-    // Transition douce lorsque l'état change.
     Behavior on activeColor {
         ColorAnimation {
             duration: Theme.animMedium
         }
     }
 
-    // Animation du zoom au survol.
     Behavior on scale {
         NumberAnimation {
             id: hoverAnim
@@ -40,7 +33,6 @@ Item {
         }
     }
 
-    // Respiration douce du cœur (0 -> 1 -> 0 en boucle)
     SequentialAnimation on corePulse {
         loops: Animation.Infinite
 
@@ -59,7 +51,6 @@ Item {
         }
     }
 
-    // Halo externe : cercles concentriques semi-transparents
     Repeater {
         model: 4
 
@@ -82,7 +73,6 @@ Item {
         }
     }
 
-    // Anneau segmenté externe, rotation lente
     Canvas {
         id: outerRing
 
@@ -141,7 +131,6 @@ Item {
         }
     }
 
-    // Anneau segmenté interne, rotation plus rapide, sens opposé
     Canvas {
         id: innerRing
 
@@ -200,7 +189,6 @@ Item {
         }
     }
 
-    // Cœur de la sphère : dégradé radial + lignes de latitude façon globe
     Canvas {
         id: core
 
@@ -270,7 +258,6 @@ Item {
             ctx.arc(cx, cy, r, 0, Math.PI * 2)
             ctx.fill()
 
-            // Lignes de latitude décoratives (effet "globe")
             ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.15)
             ctx.lineWidth = 1
 
@@ -314,7 +301,6 @@ Item {
         Component.onCompleted: requestPaint()
     }
 
-    // Zone cliquable, légèrement plus grande que le cœur
     MouseArea {
         anchors.centerIn: parent
 

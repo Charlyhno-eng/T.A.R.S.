@@ -14,13 +14,7 @@ logger = logging.getLogger("TARS.TTS")
 
 
 class TTSService(QObject):
-    """
-    Service métier TTS de T.A.R.S.
-
-    Le moteur vocal est installé explicitement par l'utilisateur.
-
-    Une fois installé, le moteur peut être chargé hors ligne.
-    """
+    """Provide asynchronous offline TTS operations."""
 
     statusChanged = Signal(str)
     stateChanged = Signal(str)
@@ -36,10 +30,11 @@ class TTSService(QObject):
     def __init__(
         self,
         parent: QObject | None = None,
+        language: str = "fr",
     ) -> None:
         super().__init__(parent)
 
-        self._adapter = TTSAdapter()
+        self._adapter = TTSAdapter(language=language)
 
         self._initialized = False
         self._initializing = False
@@ -81,13 +76,23 @@ class TTSService(QObject):
     def installed(self) -> bool:
         return self._adapter.installed
 
-    def initialize_async(self) -> None:
-        """
-        Charge automatiquement le moteur uniquement s'il a déjà
-        été installé auparavant.
+    @property
+    def language(self) -> str:
+        return self._adapter.language
 
-        Aucun téléchargement n'est déclenché ici.
-        """
+    def set_language(self, language: str) -> None:
+        """Switch voices without keeping the previous model in memory."""
+        with self._lock:
+            if self._speaking or self._initializing or self._installing:
+                raise RuntimeError("Le moteur vocal est occupé.")
+            if language == self._adapter.language:
+                return
+            self._initialized = False
+        self._adapter.set_language(language)
+        self.stateChanged.emit("not_installed")
+
+    def initialize_async(self) -> None:
+        """Load the previously installed engine without downloading."""
 
         if not self.installed:
             self.statusChanged.emit(
@@ -157,11 +162,7 @@ class TTSService(QObject):
 
     @Slot()
     def download(self) -> None:
-        """
-        Lance l'installation du moteur vocal.
-
-        Cette opération nécessite Internet uniquement la première fois.
-        """
+        """Install the voice engine using an explicit user action."""
 
         with self._lock:
             if self._installing:
@@ -330,9 +331,7 @@ class TTSService(QObject):
 
     @Slot()
     def playback_finished(self) -> None:
-        """
-        Appelé lorsque MediaPlayer a réellement terminé la lecture.
-        """
+        """Release the speaking state after media playback ends."""
 
         with self._lock:
             if not self._speaking:

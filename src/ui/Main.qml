@@ -241,13 +241,33 @@ ApplicationWindow {
         ToolTip.visible: downloadMouse.containsMouse
         ToolTip.delay: 500
         ToolTip.text: assistant.modelsInstalled
-            ? "Pocket TTS et Parakeet sont installés localement"
-            : "Télécharger Pocket TTS et Parakeet pour une utilisation hors ligne"
+            ? (assistant.language === "en"
+                ? "The selected voice and Parakeet are installed locally"
+                : "La voix sélectionnée et Parakeet sont installés localement")
+            : (assistant.language === "en"
+                ? "Download the selected Pocket TTS voice and Parakeet"
+                : "Télécharger la voix Pocket TTS sélectionnée et Parakeet")
+    }
+
+    LanguageSelector {
+        id: languageSelector
+
+        anchors.top: parent.top
+        anchors.right: modelDownloadButton.left
+        anchors.topMargin: 23
+        anchors.rightMargin: 16
+
+        language: assistant.language
+        selectorEnabled: !assistant.modelsDownloading && assistant.state === "idle"
+
+        onLanguageSelected: function(language) {
+            assistant.setLanguage(language)
+        }
     }
 
     Text {
         anchors.top: parent.top
-        anchors.right: modelDownloadButton.left
+        anchors.right: languageSelector.left
 
         anchors.topMargin: 33
         anchors.rightMargin: 16
@@ -331,6 +351,8 @@ ApplicationWindow {
         anchors.topMargin: 18
 
         text: {
+            var english = assistant.language === "en"
+
             if (assistant.modelsDownloading)
                 return assistant.status
 
@@ -338,7 +360,9 @@ ApplicationWindow {
                 return assistant.status
 
             if (!assistant.modelsInstalled)
-                return "TÉLÉCHARGEZ LES MODÈLES VOCAUX POUR COMMENCER"
+                return english
+                    ? "DOWNLOAD THE VOICE MODEL TO BEGIN"
+                    : "TÉLÉCHARGEZ LE MODÈLE VOCAL POUR COMMENCER"
 
             if (!assistant.modelsReady)
                 return assistant.status
@@ -347,14 +371,17 @@ ApplicationWindow {
                 window.assistantState ===
                 "idle"
             ) {
-                return "MAINTENEZ LA SPHÈRE POUR PARLER"
+                return english
+                    ? "HOLD THE SPHERE TO SPEAK"
+                    : "MAINTENEZ LA SPHÈRE POUR PARLER"
             }
 
             if (
                 window.assistantState === "speaking" &&
                 assistant.transcript
             ) {
-                return "TRANSCRIPTION : " + assistant.transcript
+                return (english ? "TRANSCRIPT: " : "TRANSCRIPTION : ") +
+                    assistant.transcript
             }
 
             return assistant.status
@@ -462,5 +489,7 @@ ApplicationWindow {
 
         sphereState:
             window.assistantState
+
+        language: assistant.language
     }
 }

@@ -2,9 +2,6 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import theme 1.0
 
-// Bandeau supérieur : logo/mascotte, titre,
-// indicateur système. Le téléchargement des modèles est placé dans Main.qml,
-// en haut à droite de la fenêtre.
 Item {
     id: root
 
@@ -71,8 +68,12 @@ Item {
                 Text {
                     text:
                         assistant.modelsInstalled
-                            ? "SYSTÈME EN LIGNE"
-                            : "MODÈLES VOCAUX NON INSTALLÉS"
+                            ? (assistant.language === "en"
+                                ? "SYSTEM ONLINE"
+                                : "SYSTÈME EN LIGNE")
+                            : (assistant.language === "en"
+                                ? "VOICE MODEL NOT INSTALLED"
+                                : "MODÈLE VOCAL NON INSTALLÉ")
 
                     color: Theme.textSecondary
 

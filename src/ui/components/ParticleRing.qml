@@ -1,8 +1,6 @@
 import QtQuick 2.15
 import theme 1.0
 
-// Anneau de petites particules en orbite lente autour de la sphère.
-// Purement décoratif, ne porte aucune logique métier.
 Item {
     id: root
 

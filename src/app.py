@@ -33,35 +33,14 @@ def main() -> int:
 
     engine = QQmlApplicationEngine()
 
-    # Permet à Main.qml et aux composants de faire :
-    # import theme 1.0
     engine.addImportPath(str(UI_DIR))
-
-    # ------------------------------------------------------------------
-    # Couche métier
-    # ------------------------------------------------------------------
 
     assistant = AssistantController()
 
-    # Expose le contrôleur à QML sous le nom "assistant".
-    #
-    # QML peut maintenant utiliser :
-    #
-    # assistant.state
-    # assistant.status
-    # assistant.modelsReady
-    # assistant.modelsDownloading
-    # assistant.startListening()
-    # assistant.stopListening()
-    #
     engine.rootContext().setContextProperty(
         "assistant",
         assistant,
     )
-
-    # ------------------------------------------------------------------
-    # Chargement de l'interface
-    # ------------------------------------------------------------------
 
     engine.load(
         QUrl.fromLocalFile(str(MAIN_QML))
@@ -75,10 +54,6 @@ def main() -> int:
         assistant.shutdown()
 
         return -1
-
-    # ------------------------------------------------------------------
-    # Arrêt propre
-    # ------------------------------------------------------------------
 
     exit_code = app.exec()
 

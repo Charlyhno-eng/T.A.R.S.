@@ -5,6 +5,7 @@ import logging
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from core.audio_recorder import AudioRecorder
+from core.settings import Settings
 from core.stt_service import STTService
 from core.tts_service import TTSService
 
@@ -13,7 +14,7 @@ logger = logging.getLogger("TARS.Assistant")
 
 
 class AssistantController(QObject):
-    """Point d'entrée QML pour les modèles locaux et l'interaction vocale."""
+    """QML entry point for local models and voice interaction."""
 
     stateChanged = Signal()
     statusChanged = Signal()
@@ -23,9 +24,57 @@ class AssistantController(QObject):
     modelsDownloadingChanged = Signal()
     transcriptChanged = Signal()
     audioPathChanged = Signal(str)
+    languageChanged = Signal()
+
+    ENGLISH_STATUS = {
+        "Initialisation...": "Initializing...",
+        "Chargement des modèles locaux...": "Loading local models...",
+        "Modèles vocaux non installés.": "Voice models are not installed.",
+        "Moteur vocal non installé.": "Voice engine is not installed.",
+        "Chargement de Parakeet sur CPU...": "Loading Parakeet on CPU...",
+        "Installation locale de Pocket TTS...": "Installing Pocket TTS locally...",
+        "Chargement local de Pocket TTS...": "Loading Pocket TTS locally...",
+        "Téléchargez d'abord les modèles vocaux.": "Download the voice models first.",
+        "Chargement des modèles locaux en cours...": "Local models are loading...",
+        "Parlez maintenant, puis relâchez le bouton.": "Speak now, then release the button.",
+        "Transcription locale en cours...": "Transcribing locally...",
+        "Transcription de votre message...": "Transcribing your message...",
+        "Pocket TTS prêt. Chargement de Parakeet sur CPU...": "Pocket TTS is ready. Loading Parakeet on CPU...",
+        "Modèles vocaux locaux prêts.": "Local voice models are ready.",
+        "Installation locale de Parakeet...": "Installing Parakeet locally...",
+        "Téléchargement de Parakeet (environ 2,5 Go)...": "Downloading Parakeet (about 2.5 GB)...",
+        "Modèles installés. T.A.R.S. est utilisable hors ligne.": "Models installed. T.A.R.S. works offline.",
+        "Échec du téléchargement des modèles vocaux.": "Voice model download failed.",
+        "Échec du téléchargement du moteur vocal.": "Voice engine download failed.",
+        "Je n'ai rien entendu. Réessayez.": "I didn't hear anything. Please try again.",
+        "Répétition de votre message...": "Repeating your message...",
+        "Moteur vocal prêt.": "Voice engine is ready.",
+        "Moteur vocal installé. T.A.R.S. fonctionne hors ligne.": "Voice engine installed. T.A.R.S. works offline.",
+        "Moteur vocal installé et disponible hors ligne.": "Voice engine installed and available offline.",
+        "Le moteur vocal n'est pas disponible.": "Voice engine is unavailable.",
+        "Chargement du moteur vocal local...": "Loading local voice engine...",
+        "Chargement du modèle Pocket TTS local...": "Loading local Pocket TTS model...",
+        "Préparation de la voix locale...": "Preparing local voice...",
+        "Téléchargement du moteur vocal...": "Downloading voice engine...",
+        "Téléchargement du modèle Pocket TTS...": "Downloading Pocket TTS model...",
+        "Téléchargement du tokenizer Pocket TTS...": "Downloading Pocket TTS tokenizer...",
+        "Téléchargement de la voix Pocket TTS...": "Downloading Pocket TTS voice...",
+        "Génération de la réponse vocale...": "Generating voice response...",
+        "Erreur lors de la génération audio.": "Audio generation failed.",
+        "Impossible de charger le moteur vocal local.": "Unable to load local voice engine.",
+        "Chargement local de Parakeet...": "Loading Parakeet locally...",
+        "Parakeet est prêt.": "Parakeet is ready.",
+        "Parakeet est installé et disponible hors ligne.": "Parakeet is installed and available offline.",
+        "Parakeet n'est pas disponible.": "Parakeet is unavailable.",
+        "La langue ne peut être modifiée que lorsque T.A.R.S. est en veille.": "The language can only be changed while T.A.R.S. is on standby.",
+        "Voix anglaise non installée. Cliquez sur télécharger.": "English voice is not installed. Click download.",
+        "Voix française non installée. Cliquez sur télécharger.": "French voice is not installed. Click download.",
+    }
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
+        self._settings = Settings()
+        self._language = self._settings.language()
         self._state = "idle"
         self._status = "Initialisation..."
         self._transcript = ""
@@ -37,8 +86,8 @@ class AssistantController(QObject):
         self._download_stt_after_tts = False
         self._startup_stt_pending = False
 
-        self._tts_service = TTSService(parent=self)
-        self._stt_service = STTService(parent=self)
+        self._tts_service = TTSService(parent=self, language=self._language)
+        self._stt_service = STTService(parent=self, language=self._language)
         self._recorder = AudioRecorder(parent=self)
 
         self._tts_service.statusChanged.connect(self._set_status)
@@ -60,8 +109,6 @@ class AssistantController(QObject):
 
         if self.modelsInstalled:
             self._set_status("Chargement des modèles locaux...")
-            # Le chargement est volontairement séquentiel : Parakeet et le
-            # Pocket TTS français mobilisent tous deux beaucoup de RAM sur CPU.
             self._startup_stt_pending = True
             self._tts_service.initialize_async()
         else:
@@ -95,9 +142,49 @@ class AssistantController(QObject):
     def transcript(self) -> str:
         return self._transcript
 
+    @Property(str, notify=languageChanged)
+    def language(self) -> str:
+        return self._language
+
+    @Slot(str)
+    def setLanguage(self, language: str) -> None:
+        if language not in Settings.SUPPORTED_LANGUAGES or language == self._language:
+            return
+        if self._state != "idle" or self._models_downloading:
+            self._set_status(
+                "La langue ne peut être modifiée que lorsque T.A.R.S. est en veille."
+            )
+            return
+
+        self._language = language
+        self._settings.set_language(language)
+        self.languageChanged.emit()
+        self._transcript = ""
+        self.transcriptChanged.emit()
+
+        try:
+            self._tts_service.set_language(language)
+            self._stt_service.set_language(language)
+        except RuntimeError as exc:
+            self._set_status(str(exc))
+            return
+
+        self.modelsInstalledChanged.emit()
+        self.modelsReadyChanged.emit()
+        if self._tts_service.installed:
+            self._startup_stt_pending = True
+            self._set_status("Chargement du moteur vocal local...")
+            self._tts_service.initialize_async()
+        else:
+            self._set_status(
+                "Voix anglaise non installée. Cliquez sur télécharger."
+                if language == "en"
+                else "Voix française non installée. Cliquez sur télécharger."
+            )
+
     @Slot()
     def downloadModels(self) -> None:
-        """Installe successivement TTS puis STT depuis le bouton unique."""
+        """Install TTS and then STT through the single download button."""
         if self._models_downloading:
             return
         if self.modelsInstalled:
@@ -119,8 +206,6 @@ class AssistantController(QObject):
             self._set_status("Installation locale de Pocket TTS...")
             self._tts_service.download()
         elif not self._tts_service.initialized:
-            # Une précédente installation a pu s'arrêter après Pocket TTS.
-            # Chargeons-le avant de poursuivre avec Parakeet.
             self._set_status("Chargement local de Pocket TTS...")
             self._tts_service.initialize_async()
         elif self._download_stt_after_tts:
@@ -244,7 +329,8 @@ class AssistantController(QObject):
             self._set_status("Je n'ai rien entendu. Réessayez.")
             self._set_state("idle")
             return
-        self._set_status(f"Vous avez dit : {self._transcript}")
+        prefix = "You said" if self._language == "en" else "Vous avez dit"
+        self._set_status(f"{prefix} : {self._transcript}")
         self._tts_service.speak(self._transcript)
 
     def _on_speech_finished(self, audio_path: str) -> None:
@@ -254,13 +340,15 @@ class AssistantController(QObject):
 
     def _on_tts_error(self, error: str) -> None:
         logger.error("Erreur Pocket TTS : %s", error)
-        self._set_status(f"Erreur Pocket TTS : {error}")
+        prefix = "Pocket TTS error" if self._language == "en" else "Erreur Pocket TTS"
+        self._set_status(f"{prefix} : {error}")
         if self._state == "speaking":
             self._set_state("idle")
 
     def _on_stt_error(self, error: str) -> None:
         logger.error("Erreur Parakeet : %s", error)
-        self._set_status(f"Erreur Parakeet : {error}")
+        prefix = "Parakeet error" if self._language == "en" else "Erreur Parakeet"
+        self._set_status(f"{prefix} : {error}")
         if self._state == "thinking":
             self._set_state("idle")
 
@@ -270,6 +358,8 @@ class AssistantController(QObject):
             self.stateChanged.emit()
 
     def _set_status(self, value: str) -> None:
+        if self._language == "en":
+            value = self.ENGLISH_STATUS.get(value, value)
         if value != self._status:
             self._status = value
             self.statusChanged.emit()

@@ -12,24 +12,9 @@ logger = logging.getLogger("TARS.TTSAdapter")
 
 
 class TTSAdapter:
-    """
-    Adaptateur TTS de T.A.R.S.
+    """Expose a stable offline interface to Pocket TTS."""
 
-    Cette classe permet de découpler T.A.R.S. de Pocket TTS.
-
-    Elle gère :
-    - l'installation initiale du moteur ;
-    - le chargement hors ligne ;
-    - la génération audio ;
-    - l'état d'installation.
-
-    Le reste de l'application ne connaît pas Pocket TTS.
-    """
-
-    MODEL_LANGUAGE = "french_24l"
-    MODEL_VOICE = "estelle"
-
-    def __init__(self) -> None:
+    def __init__(self, language: str = "fr") -> None:
         self._data_directory = (
             Path.home()
             / ".tars"
@@ -44,29 +29,33 @@ class TTSAdapter:
         self._provider = PocketTTSProvider(
             data_directory=self._data_directory,
         )
+        self._language = language
 
     @property
     def installed(self) -> bool:
-        """
-        Indique si T.A.R.S. a déjà effectué une installation complète
-        du moteur vocal.
-        """
+        """Return whether the selected voice is fully installed."""
         return (
             self._installation_marker.exists()
-            and self._provider.resources_available
+            and self._provider.resources_available(self._language)
         )
+
+    @property
+    def language(self) -> str:
+        return self._language
+
+    def set_language(self, language: str) -> None:
+        if language == self._language:
+            return
+        if language not in PocketTTSProvider.LANGUAGES:
+            raise ValueError(f"Langue non prise en charge : {language}")
+        self._provider.shutdown()
+        self._language = language
 
     def initialize(
         self,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
-        """
-        Charge le moteur depuis les ressources déjà téléchargées.
-
-        Cette méthode est utilisée au démarrage normal de T.A.R.S.
-
-        Elle ne doit pas déclencher de téléchargement Internet.
-        """
+        """Load the selected engine from local resources only."""
 
         if not self.installed:
             raise RuntimeError(
@@ -83,20 +72,13 @@ class TTSAdapter:
                 "Chargement du moteur vocal local..."
             )
 
-        # Le provider reçoit uniquement des chemins locaux préparés lors de
-        # download(). Il ne peut donc pas interroger Hugging Face ici.
-        self._provider.load(on_status=on_status)
+        self._provider.load(self._language, on_status=on_status)
 
     def download(
         self,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
-        """
-        Télécharge et prépare toutes les ressources nécessaires.
-
-        Cette méthode est appelée explicitement par l'utilisateur
-        via le bouton de téléchargement de l'interface.
-        """
+        """Download and prepare resources after an explicit user action."""
 
         logger.info(
             "[T.A.R.S.][TTS] Installation du moteur vocal."
@@ -110,10 +92,11 @@ class TTSAdapter:
         try:
             self._provider.shutdown()
             self._provider.download(
+                self._language,
                 on_status=on_status,
             )
 
-            self._provider.load(on_status=on_status)
+            self._provider.load(self._language, on_status=on_status)
 
             self._write_installation_marker()
 
@@ -136,8 +119,7 @@ class TTSAdapter:
     def _write_installation_marker(self) -> None:
         data = {
             "provider": "pocket-tts",
-            "language": self.MODEL_LANGUAGE,
-            "voice": self.MODEL_VOICE,
+            "language": self._language,
             "offline": True,
         }
 

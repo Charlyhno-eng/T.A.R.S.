@@ -8,7 +8,7 @@ from providers.stt.parakeet import ParakeetProvider
 
 
 class STTAdapter:
-    """Interface stable entre T.A.R.S. et Parakeet."""
+    """Stable interface between T.A.R.S. and Parakeet."""
 
     def __init__(self) -> None:
         self._data_directory = Path.home() / ".tars" / "stt"
@@ -46,8 +46,8 @@ class STTAdapter:
         self._provider.load(on_status=on_status)
         self._write_installation_marker()
 
-    def transcribe(self, audio_path: Path) -> str:
-        return self._provider.transcribe(audio_path)
+    def transcribe(self, audio_path: Path, language: str = "fr") -> str:
+        return self._provider.transcribe(audio_path, language=language)
 
     def shutdown(self) -> None:
         self._provider.shutdown()

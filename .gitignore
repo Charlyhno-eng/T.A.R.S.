@@ -9,8 +9,8 @@ venv/
 env/
 
 # Agents
-AGENTS.md
-skills/
+#AGENTS.md
+#skills/
 
 # Python packaging
 *.egg

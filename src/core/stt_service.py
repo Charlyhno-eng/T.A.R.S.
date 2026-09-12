@@ -13,7 +13,7 @@ logger = logging.getLogger("TARS.STT")
 
 
 class STTService(QObject):
-    """Chargement et transcription asynchrones de Parakeet."""
+    """Asynchronous loading and transcription service for Parakeet."""
 
     statusChanged = Signal(str)
     stateChanged = Signal(str)
@@ -23,9 +23,14 @@ class STTService(QObject):
     installationFinished = Signal()
     installationFailed = Signal()
 
-    def __init__(self, parent: QObject | None = None) -> None:
+    def __init__(
+        self,
+        parent: QObject | None = None,
+        language: str = "fr",
+    ) -> None:
         super().__init__(parent)
         self._adapter = STTAdapter()
+        self._language = language
         self._initialized = False
         self._initializing = False
         self._installing = False
@@ -40,6 +45,11 @@ class STTService(QObject):
     def initialized(self) -> bool:
         with self._lock:
             return self._initialized
+
+    def set_language(self, language: str) -> None:
+        if language not in {"fr", "en"}:
+            raise ValueError(f"Unsupported Parakeet language: {language}")
+        self._language = language
 
     def initialize_async(self) -> None:
         if not self.installed:
@@ -118,7 +128,9 @@ class STTService(QObject):
     def _transcribe_worker(self, audio_path: Path) -> None:
         try:
             self.statusChanged.emit("Transcription de votre message...")
-            self.transcriptionReady.emit(self._adapter.transcribe(audio_path))
+            self.transcriptionReady.emit(
+                self._adapter.transcribe(audio_path, language=self._language)
+            )
         except Exception as exc:
             logger.exception("Erreur de transcription Parakeet.")
             self.errorOccurred.emit(str(exc))
