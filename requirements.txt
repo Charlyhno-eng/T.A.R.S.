@@ -1,3 +1,6 @@
 PySide6>=6.6
 pocket-tts
 scipy
+huggingface_hub
+PyYAML
+nemo_toolkit[asr]

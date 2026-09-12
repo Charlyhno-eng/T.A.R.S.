@@ -75,15 +75,15 @@ ApplicationWindow {
     Connections {
         target: assistant
 
-        function onAudioPathChanged() {
-            if (!assistant.audioPath)
+        function onAudioPathChanged(audioPath) {
+            if (!audioPath)
                 return
 
             audioPlayer.stop()
 
             audioPlayer.source =
                 "file://" +
-                assistant.audioPath
+                audioPath
 
             audioPlayer.play()
         }
@@ -158,10 +158,10 @@ ApplicationWindow {
     Rectangle {
         id: downloadStatus
 
-        anchors.top: parent.top
+        anchors.top: modelDownloadButton.bottom
         anchors.right: parent.right
 
-        anchors.topMargin: 24
+        anchors.topMargin: 10
         anchors.rightMargin: 24
 
         width: 300
@@ -182,7 +182,7 @@ ApplicationWindow {
             Theme.panelBorder
 
         visible:
-            assistant.ttsDownloading
+            assistant.modelsDownloading
 
         Text {
             anchors.centerIn: parent
@@ -202,14 +202,58 @@ ApplicationWindow {
         }
     }
 
-    Text {
+    Rectangle {
+        id: modelDownloadButton
+
         anchors.top: parent.top
         anchors.right: parent.right
+        anchors.topMargin: 20
+        anchors.rightMargin: 24
 
-        anchors.margins: 24
+        width: 42
+        height: 42
+        radius: 21
+        color: downloadMouse.containsMouse ? Theme.panelBorder : "transparent"
+        border.width: 1
+        border.color: assistant.modelsDownloading
+            ? Theme.colorListening : Theme.panelBorder
+
+        Text {
+            anchors.centerIn: parent
+            text: assistant.modelsDownloading ? "..." :
+                (assistant.modelsInstalled ? "✓" : "↓")
+            color: assistant.modelsDownloading
+                ? Theme.colorListening : Theme.textPrimary
+            font.family: Theme.fontFamily
+            font.pixelSize: assistant.modelsDownloading ? 14 : 22
+            font.bold: true
+        }
+
+        MouseArea {
+            id: downloadMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: !assistant.modelsDownloading && !assistant.modelsInstalled
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: assistant.downloadModels()
+        }
+
+        ToolTip.visible: downloadMouse.containsMouse
+        ToolTip.delay: 500
+        ToolTip.text: assistant.modelsInstalled
+            ? "Pocket TTS et Parakeet sont installés localement"
+            : "Télécharger Pocket TTS et Parakeet pour une utilisation hors ligne"
+    }
+
+    Text {
+        anchors.top: parent.top
+        anchors.right: modelDownloadButton.left
+
+        anchors.topMargin: 33
+        anchors.rightMargin: 16
 
         visible:
-            !assistant.ttsDownloading
+            !assistant.modelsDownloading
 
         text: Qt.formatDateTime(
             clock.now,
@@ -272,9 +316,8 @@ ApplicationWindow {
             sphereState:
                 window.assistantState
 
-            onClicked: {
-                assistant.activate()
-            }
+            onPressed: assistant.startListening()
+            onReleased: assistant.stopListening()
         }
     }
 
@@ -288,23 +331,30 @@ ApplicationWindow {
         anchors.topMargin: 18
 
         text: {
-            if (assistant.ttsDownloading)
+            if (assistant.modelsDownloading)
                 return assistant.status
 
-            if (assistant.ttsLoading)
+            if (assistant.modelsLoading)
                 return assistant.status
 
-            if (!assistant.ttsInstalled)
-                return "TÉLÉCHARGEZ LE MOTEUR VOCAL POUR COMMENCER"
+            if (!assistant.modelsInstalled)
+                return "TÉLÉCHARGEZ LES MODÈLES VOCAUX POUR COMMENCER"
 
-            if (!assistant.ttsReady)
+            if (!assistant.modelsReady)
                 return assistant.status
 
             if (
                 window.assistantState ===
                 "idle"
             ) {
-                return "CLIQUEZ SUR LA SPHÈRE POUR INTERAGIR"
+                return "MAINTENEZ LA SPHÈRE POUR PARLER"
+            }
+
+            if (
+                window.assistantState === "speaking" &&
+                assistant.transcript
+            ) {
+                return "TRANSCRIPTION : " + assistant.transcript
             }
 
             return assistant.status
@@ -350,7 +400,7 @@ ApplicationWindow {
             Theme.panelBorder
 
         visible:
-            assistant.ttsDownloading
+            assistant.modelsDownloading
 
         Rectangle {
             id: loadingBar

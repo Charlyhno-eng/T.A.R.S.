@@ -49,10 +49,10 @@ def main() -> int:
     #
     # assistant.state
     # assistant.status
-    # assistant.ttsReady
-    # assistant.ttsLoading
-    # assistant.audioPath
-    # assistant.activate()
+    # assistant.modelsReady
+    # assistant.modelsDownloading
+    # assistant.startListening()
+    # assistant.stopListening()
     #
     engine.rootContext().setContextProperty(
         "assistant",

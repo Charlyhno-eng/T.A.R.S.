@@ -4,7 +4,7 @@ import theme 1.0
 // Sphère centrale de l'assistant : cœur en dégradé radial, deux anneaux
 // segmentés qui tournent en sens opposés, halo externe et pulsation.
 // Ce composant ne connaît aucun état métier : il expose juste `sphereState`
-// et un signal `clicked()`.
+// et les signaux pressé/relâché nécessaires à la capture vocale.
 Item {
     id: root
 
@@ -12,7 +12,8 @@ Item {
     property color activeColor: Theme.stateColor(sphereState)
     property real corePulse: 0.0
 
-    signal clicked()
+    signal pressed()
+    signal released()
 
     implicitWidth: 340
     implicitHeight: 340
@@ -323,7 +324,8 @@ Item {
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
 
-        onClicked: root.clicked()
+        onPressed: root.pressed()
+        onReleased: root.released()
 
         onEntered: {
             root.scale = 1.05

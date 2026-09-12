@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Callable
 
@@ -31,22 +30,19 @@ class TTSAdapter:
     MODEL_VOICE = "estelle"
 
     def __init__(self) -> None:
-        self._provider = PocketTTSProvider()
-
         self._data_directory = (
             Path.home()
             / ".tars"
             / "tts"
         )
 
-        self._data_directory.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
         self._installation_marker = (
             self._data_directory
             / "pocket_tts_installed.json"
+        )
+
+        self._provider = PocketTTSProvider(
+            data_directory=self._data_directory,
         )
 
     @property
@@ -55,7 +51,10 @@ class TTSAdapter:
         Indique si T.A.R.S. a déjà effectué une installation complète
         du moteur vocal.
         """
-        return self._installation_marker.exists()
+        return (
+            self._installation_marker.exists()
+            and self._provider.resources_available
+        )
 
     def initialize(
         self,
@@ -79,32 +78,14 @@ class TTSAdapter:
             "[T.A.R.S.][TTS] Chargement hors ligne."
         )
 
-        previous_value = os.environ.get(
-            "HF_HUB_OFFLINE"
-        )
-
-        try:
-            os.environ["HF_HUB_OFFLINE"] = "1"
-
-            if on_status:
-                on_status(
-                    "Chargement du moteur vocal local..."
-                )
-
-            self._provider.load(
-                on_status=on_status,
+        if on_status:
+            on_status(
+                "Chargement du moteur vocal local..."
             )
 
-        finally:
-            if previous_value is None:
-                os.environ.pop(
-                    "HF_HUB_OFFLINE",
-                    None,
-                )
-            else:
-                os.environ["HF_HUB_OFFLINE"] = (
-                    previous_value
-                )
+        # Le provider reçoit uniquement des chemins locaux préparés lors de
+        # download(). Il ne peut donc pas interroger Hugging Face ici.
+        self._provider.load(on_status=on_status)
 
     def download(
         self,
@@ -126,23 +107,13 @@ class TTSAdapter:
                 "Téléchargement du moteur vocal..."
             )
 
-        # Pendant cette opération, HF_HUB_OFFLINE ne doit surtout
-        # pas être activé.
-        previous_value = os.environ.get(
-            "HF_HUB_OFFLINE"
-        )
-
         try:
-            os.environ.pop(
-                "HF_HUB_OFFLINE",
-                None,
-            )
-
             self._provider.shutdown()
-
-            self._provider.load(
+            self._provider.download(
                 on_status=on_status,
             )
+
+            self._provider.load(on_status=on_status)
 
             self._write_installation_marker()
 
@@ -161,17 +132,6 @@ class TTSAdapter:
             )
 
             raise
-
-        finally:
-            if previous_value is None:
-                os.environ.pop(
-                    "HF_HUB_OFFLINE",
-                    None,
-                )
-            else:
-                os.environ["HF_HUB_OFFLINE"] = (
-                    previous_value
-                )
 
     def _write_installation_marker(self) -> None:
         data = {

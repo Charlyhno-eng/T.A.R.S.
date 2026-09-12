@@ -29,3 +29,11 @@ pip install -r requirements.txt
 ```bash
 python src/app.py
 ```
+
+At the first launch, use the download button in the top-right corner. It installs
+Pocket TTS (French voice Estelle) and Parakeet TDT 0.6B v3 into `~/.tars/`.
+After the installation has completed, normal startup, transcription, and speech
+generation only load these local files and do not require an Internet connection.
+
+Hold the central sphere while speaking; release it to have Parakeet transcribe
+your voice and Pocket TTS repeat the transcription.
