@@ -45,4 +45,4 @@ On first launch, use the download button to install the local models. Hold the c
 
 Create your own Python agent under `src/agents/`, then register it in `src/agents/registry.py`. Add its aliases and contact verbs to `config/responses.toml` so T.A.R.S. can recognize it by voice. Use `Agent 1` and `Agent 2` as examples, and adapt the agent’s `run` method to connect it to your own tools or services.
 
-![Example](assets/tars-structure.png)
+![Example](assets/tars-structure.gif)
