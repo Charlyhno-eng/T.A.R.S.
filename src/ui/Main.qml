@@ -243,15 +243,15 @@ ApplicationWindow {
         ToolTip.delay: 500
         ToolTip.text: assistant.modelsReady
             ? (assistant.language === "en"
-                ? "Pocket TTS, Parakeet and Needle 2 are ready"
-                : "Pocket TTS, Parakeet et Needle 2 sont prêts")
+                ? "Pocket TTS and Parakeet are ready"
+                : "Pocket TTS et Parakeet sont prêts")
             : (assistant.modelsInstalled
                 ? (assistant.language === "en"
-                    ? "Loading Pocket TTS, Parakeet and Needle 2"
-                    : "Chargement de Pocket TTS, Parakeet et Needle 2")
+                    ? "Loading Pocket TTS and Parakeet"
+                    : "Chargement de Pocket TTS et Parakeet")
                 : (assistant.language === "en"
-                    ? "Download Pocket TTS, Parakeet and Needle 2"
-                    : "Télécharger Pocket TTS, Parakeet et Needle 2"))
+                    ? "Download Pocket TTS and Parakeet"
+                    : "Télécharger Pocket TTS et Parakeet"))
     }
 
     LanguageSelector {
@@ -502,6 +502,15 @@ ApplicationWindow {
         sphereState:
             window.assistantState
 
+        language: assistant.language
+    }
+
+    AgentSessionPanel {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: statusPanel.top
+        anchors.bottomMargin: 18
+
+        activeAgent: assistant.activeAgent
         language: assistant.language
     }
 }

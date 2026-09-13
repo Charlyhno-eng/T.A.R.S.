@@ -7,7 +7,7 @@ import tomllib
 class ResponseCatalog:
     """Read editable replies and local routing vocabulary."""
 
-    DEFAULT_LANGUAGE = "fr"
+    DEFAULT_LANGUAGE = "en"
 
     def __init__(self) -> None:
         self._path = (

@@ -26,7 +26,7 @@ class STTService(QObject):
     def __init__(
         self,
         parent: QObject | None = None,
-        language: str = "fr",
+        language: str = "en",
     ) -> None:
         super().__init__(parent)
         self._adapter = STTAdapter()

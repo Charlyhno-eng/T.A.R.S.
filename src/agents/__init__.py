@@ -1,1 +1,1 @@
-"""Local agents that can be selected by the decision LLM."""
+"""Local agents that can be selected by deterministic routing."""

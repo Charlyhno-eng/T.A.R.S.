@@ -5,7 +5,7 @@ Column {
     id: root
 
     property string sphereState: "idle"
-    property string language: "fr"
+    property string language: "en"
     property color accent: Theme.stateColor(sphereState)
 
     spacing: 14

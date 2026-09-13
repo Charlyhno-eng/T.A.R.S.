@@ -8,7 +8,7 @@ import tomllib
 class Settings:
     """Lightweight persistent preferences for T.A.R.S."""
 
-    DEFAULT_LANGUAGE = "fr"
+    DEFAULT_LANGUAGE = "en"
     SUPPORTED_LANGUAGES = {"fr", "en"}
 
     def __init__(self) -> None:

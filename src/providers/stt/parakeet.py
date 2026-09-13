@@ -68,7 +68,7 @@ class ParakeetProvider:
         self._model.freeze()
         self._release_loading_memory()
 
-    def transcribe(self, audio_path: Path, language: str = "fr") -> str:
+    def transcribe(self, audio_path: Path, language: str = "en") -> str:
         if self._model is None:
             raise RuntimeError("Parakeet n'est pas initialisé.")
 

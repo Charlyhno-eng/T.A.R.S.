@@ -14,7 +14,7 @@ logger = logging.getLogger("TARS.TTSAdapter")
 class TTSAdapter:
     """Expose a stable offline interface to Pocket TTS."""
 
-    def __init__(self, language: str = "fr") -> None:
+    def __init__(self, language: str = "en") -> None:
         self._data_directory = (
             Path.home()
             / ".tars"

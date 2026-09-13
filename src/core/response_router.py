@@ -7,7 +7,7 @@ from core.responses import ResponseCatalog
 
 
 class ResponseRouter:
-    """Turn a Needle route into either a local response or an agent call."""
+    """Turn a deterministic route into a local response or an agent call."""
 
     def __init__(self, catalog: ResponseCatalog, agents: AgentRegistry) -> None:
         self._catalog = catalog

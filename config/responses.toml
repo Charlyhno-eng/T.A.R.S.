@@ -1,50 +1,61 @@
 [responses.fr]
-greeting = "Bonjour. Comment puis-je vous aider ?"
-wellbeing = "Je vais bien, merci. Que puis-je faire pour vous ?"
-identity = "Je suis T,A,R,S. Votre assistant local."
+greeting = "Bonjour. Que puis-je faire pour vous ?"
+wellbeing = "Je vais bien, merci de demander. Que souhaitez-vous faire ?"
+identity = "Je suis T.A.R.S., votre assistant vocal local."
 thanks = "Avec plaisir."
-help = "Je suis prêt à vous aider."
-acknowledge = "J'ai compris. Que souhaitez-vous faire ?"
-unknown = "Je n'ai pas encore la réponse. Pouvez-vous reformuler ?"
+help = "Je peux répondre aux demandes simples, donner l’heure ou la date, et vous mettre en relation avec l’agent 1 ou l’agent 2."
+acknowledge = "Très bien. Que souhaitez-vous faire ensuite ?"
+unknown = "Je n’ai pas reconnu cette demande. Vous pouvez, par exemple, demander l’heure, dire bonjour ou contacter l’agent 1 ou l’agent 2."
 time = "Il est {time}."
 date = "Nous sommes le {date}."
 
 [responses.en]
-greeting = "Hello. How can I help you?"
-wellbeing = "I am doing well, thank you. What can I do for you?"
-identity = "I am T,A,R,S. Your local assistant."
+greeting = "Hello. What can I do for you?"
+wellbeing = "I am doing well, thank you for asking. What would you like to do?"
+identity = "I am T.A.R.S., your local voice assistant."
 thanks = "You are welcome."
-help = "I am ready to help you."
-acknowledge = "I understand. What would you like to do?"
-unknown = "I do not have an answer yet. Could you rephrase that?"
+help = "I can handle simple requests, tell you the time or date, and connect you with Agent 1 or Agent 2."
+acknowledge = "Understood. What would you like to do next?"
+unknown = "I did not recognize that request. You can ask for the time, say hello, or contact Agent 1 or Agent 2."
 time = "It is {time}."
 date = "Today's date is {date}."
 
 [intents.greeting]
-words = ["bonjour", "bonsoir", "salut", "coucou", "hello", "hi", "hey", "yo"]
-phrases = ["bonne journee", "bonne soiree", "au revoir", "a bientot", "good morning", "good afternoon", "good evening", "goodbye", "see you"]
+words = ["bonjour", "bonsoir", "salut", "coucou", "hello", "hi", "hey", "greetings"]
+phrases = ["bonne journee", "bonne soiree", "au revoir", "a bientot", "good morning", "good afternoon", "good evening", "goodbye", "see you later", "see you"]
 
 [intents.wellbeing]
-phrases = ["comment vas tu", "comment allez vous", "comment ca va", "ca va", "tu vas bien", "vous allez bien", "how are you", "are you well"]
+phrases = ["comment vas tu", "comment allez vous", "comment ca va", "ca va", "tu vas bien", "vous allez bien", "how are you", "how is it going", "are you well"]
+all_words = [["how", "doing"], ["tu", "bien"], ["vous", "bien"]]
 
 [intents.thanks]
-words = ["merci", "remerc", "thanks", "thank", "appreciate"]
+words = ["merci", "thanks"]
+stems = ["remerc", "thank", "appreciat"]
 
 [intents.help]
-words = ["aide", "aider", "assist", "help", "support"]
-phrases = ["que peux tu faire", "que savez vous faire", "comment peux tu m aider", "what can you do", "can you help"]
+words = ["aide", "help", "support"]
+stems = ["aid", "assist"]
+phrases = ["que peux tu faire", "que savez vous faire", "comment peux tu m aider", "comment pouvez vous m aider", "what can you do", "can you help", "help me"]
 
 [intents.time]
 words = ["heure", "horloge", "time", "clock"]
-phrases = ["quelle heure est il", "quel heure est il", "what time is it", "do you have the time"]
+phrases = ["quelle heure est il", "quel heure est il", "quelle est l heure", "donne moi l heure", "what time is it", "do you have the time", "tell me the time"]
 
 [intents.date]
-words = ["date", "jour", "day", "today"]
-phrases = ["quel jour sommes nous", "on est quel jour", "quelle est la date", "what day is it", "what is the date"]
+words = ["date", "today"]
+phrases = ["quel jour sommes nous", "on est quel jour", "quelle est la date", "on est quelle date", "what day is it", "what is the date", "tell me the date", "what is today s date"]
 
 [intents.identity]
-phrases = ["qui es tu", "dis moi qui tu es", "quel est ton nom", "comment tu t appelles", "comment t appelles tu", "tu t appelles comment", "presente toi", "presentez vous", "parle moi de toi", "who are you", "what is your name", "introduce yourself", "tell me about yourself"]
+phrases = ["qui es tu", "dis moi qui tu es", "quel est ton nom", "comment tu t appelles", "comment t appelles tu", "tu t appelles comment", "presente toi", "presentez vous", "parle moi de toi", "who are you", "what is your name", "introduce yourself", "tell me about yourself", "what are you"]
+
+[intents.acknowledge]
+words = ["ok", "okay", "oui", "yes", "parfait", "great"]
+phrases = ["d accord", "c est bon", "sounds good", "all right"]
 
 [agents.agent_1]
 aliases = ["agent 1", "agent un", "agent one", "agent numero 1", "agent numero un", "agent premier", "premier agent", "first agent", "number one agent"]
-verbs = ["appel", "contact", "lance", "demande", "parle", "joign", "relation", "transfer", "connect", "join", "call", "reach", "launch", "start", "talk", "speak"]
+verbs = ["appel", "contact", "lance", "demande", "parle", "joign", "relation", "transfer", "connect", "join", "call", "reach", "launch", "start", "talk", "speak", "ouvre", "active", "utilise", "use", "switch", "passe", "envoie", "send", "want", "voudr"]
+
+[agents.agent_2]
+aliases = ["agent 2", "agent deux", "agent two", "agent numero 2", "agent numero deux", "second agent", "deuxieme agent", "number two agent"]
+verbs = ["appel", "contact", "lance", "demande", "parle", "joign", "relation", "transfer", "connect", "join", "call", "reach", "launch", "start", "talk", "speak", "ouvre", "active", "utilise", "use", "switch", "passe", "envoie", "send", "want", "voudr"]

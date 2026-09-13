@@ -1,18 +1,19 @@
 ![T.A.R.S.](assets/tars-banner.png)
 
-# **T.A.R.S.**
+# T.A.R.S.
 
 ---
 
-T.A.R.S. is my personal take on a Jarvis-like virtual robot assistant, designed to be controlled primarily through voice.
+T.A.R.S. is an extremely lightweight local voice assistant built with Python, PySide6, and QML.
+It uses Parakeet TDT 0.6B v3 for speech-to-text (STT) and Pocket TTS for text-to-speech (TTS).
 
-It can understand and respond in French or English, using lightweight local AI models for STT, TTS, and LLM tasks. Most interactions are processed locally and can run on CPU, keeping the system lightweight, private, and accessible without requiring powerful hardware.
+After the models have been installed, the application works offline and runs entirely on the CPU.
+English is the default language, and Parakeet generally performs better in English than in French.
+French remains available from the interface.
 
-For more complex tasks, T.A.R.S. can also rely on larger LLMs through APIs, combining local models with cloud-based AI when additional capabilities are needed.
-
-The long-term goal is to make T.A.R.S. a voice-controlled interface for AI agents. You should be able to connect your own agents, tools, and services and control them naturally through speech.
-
-This repository is my personal implementation, but you are free to clone it, modify it, and adapt it to your own needs. Use it as a foundation to connect your own AI agents and build your own voice-controlled AI system.
+T.A.R.S. is not a finished product, but an accessible base for building a personal assistant.
+The project is designed to be customized with your own Python agents, voice commands, and responses.
+Agent 1 and Agent 2 provide simple examples to start from.
 
 ---
 
@@ -22,7 +23,7 @@ This repository is my personal implementation, but you are free to clone it, mod
 
 ---
 
-## Quick start
+## Quickstart
 
 ### Install
 
@@ -35,18 +36,13 @@ pip install -r requirements.txt
 ### Run
 
 ```bash
-python src/app.py
+python3 src/app.py
 ```
 
-At the first launch, use the download button in the top-right corner. It installs
-Pocket TTS (French voice Estelle), Parakeet TDT 0.6B v3, and the Needle 2 engine
-into `~/.tars/`. After the installation has completed, normal startup,
-transcription, decision-making, and speech generation only load these local files
-and do not require an Internet connection.
+On first launch, use the download button to install the local models. Hold the central sphere while speaking, then release it to receive a response.
 
-French is the default application language. Select `ENGLISH` from the top-right
-language selector to switch the interface and voice. The first English selection
-offers to download its compact local Pocket TTS voice; the choice is remembered.
+## Customizing agents
 
-Hold the central sphere while speaking; release it to have Parakeet transcribe
-your voice, Needle 2 select a short local response, and Pocket TTS speak it.
+Create your own Python agent under `src/agents/`, then register it in `src/agents/registry.py`. Add its aliases and contact verbs to `config/responses.toml` so T.A.R.S. can recognize it by voice. Use `Agent 1` and `Agent 2` as examples, and adapt the agent’s `run` method to connect it to your own tools or services.
+
+![Example](assets/tars-structure.png)

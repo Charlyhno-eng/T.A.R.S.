@@ -46,7 +46,7 @@ class STTAdapter:
         self._provider.load(on_status=on_status)
         self._write_installation_marker()
 
-    def transcribe(self, audio_path: Path, language: str = "fr") -> str:
+    def transcribe(self, audio_path: Path, language: str = "en") -> str:
         return self._provider.transcribe(audio_path, language=language)
 
     def shutdown(self) -> None:

@@ -5,7 +5,7 @@ import logging
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from core.audio_recorder import AudioRecorder
-from core.llm_service import LLMService
+from core.interaction_service import InteractionService
 from core.responses import ResponseCatalog
 from core.settings import Settings
 from core.stt_service import STTService
@@ -26,6 +26,7 @@ class AssistantController(QObject):
     modelsDownloadingChanged = Signal()
     transcriptChanged = Signal()
     responseChanged = Signal()
+    activeAgentChanged = Signal()
     audioPathChanged = Signal(str)
     languageChanged = Signal()
 
@@ -72,14 +73,7 @@ class AssistantController(QObject):
         "La langue ne peut être modifiée que lorsque T.A.R.S. est en veille.": "The language can only be changed while T.A.R.S. is on standby.",
         "Voix anglaise non installée. Cliquez sur télécharger.": "English voice is not installed. Click download.",
         "Voix française non installée. Cliquez sur télécharger.": "French voice is not installed. Click download.",
-        "Installation locale de Needle 2...": "Installing Needle 2 locally...",
-        "Téléchargement de Needle 2...": "Downloading Needle 2...",
-        "Chargement local de Needle 2...": "Loading Needle 2 locally...",
-        "Needle 2 est prêt.": "Needle 2 is ready.",
-        "Needle 2 est installé et disponible hors ligne.": "Needle 2 is installed and available offline.",
-        "Needle 2 n'est pas disponible.": "Needle 2 is unavailable.",
-        "Analyse locale de votre demande...": "Analyzing your request locally...",
-        "Erreur Needle 2": "Needle 2 error",
+        "Interprétation locale de votre demande...": "Understanding your request locally...",
     }
 
     def __init__(self, parent: QObject | None = None) -> None:
@@ -91,12 +85,11 @@ class AssistantController(QObject):
         self._status = "Initialisation..."
         self._transcript = ""
         self._response = ""
+        self._active_agent = ""
         self._tts_ready = False
         self._stt_ready = False
-        self._llm_ready = False
         self._tts_loading = False
         self._stt_loading = False
-        self._llm_loading = False
         self._models_downloading = False
         self._downloads_complete = False
         self._download_queue: list[str] = []
@@ -104,7 +97,7 @@ class AssistantController(QObject):
 
         self._tts_service = TTSService(parent=self, language=self._language)
         self._stt_service = STTService(parent=self, language=self._language)
-        self._llm_service = LLMService(parent=self, language=self._language)
+        self._interaction_service = InteractionService(self._response_catalog)
         self._recorder = AudioRecorder(parent=self)
 
         self._tts_service.statusChanged.connect(self._set_status)
@@ -126,15 +119,6 @@ class AssistantController(QObject):
             self._on_model_installation_failed
         )
 
-        self._llm_service.statusChanged.connect(self._set_status)
-        self._llm_service.stateChanged.connect(self._on_llm_state_changed)
-        self._llm_service.errorOccurred.connect(self._on_llm_error)
-        self._llm_service.responseReady.connect(self._on_llm_response_ready)
-        self._llm_service.installationFinished.connect(self._on_llm_installed)
-        self._llm_service.installationFailed.connect(
-            self._on_model_installation_failed
-        )
-
     def start(self) -> None:
         """Start local model loading after the first UI event."""
         if self._started:
@@ -144,15 +128,12 @@ class AssistantController(QObject):
             self._set_status("Chargement des modèles locaux...")
             self._stt_service.initialize_async()
             self._tts_service.initialize_async()
-            self._llm_service.initialize_async()
         else:
             self._set_status("Modèles locaux non installés.")
             if self._tts_service.installed:
                 self._tts_service.initialize_async()
             if self._stt_service.installed:
                 self._stt_service.initialize_async()
-            if self._llm_service.installed:
-                self._llm_service.initialize_async()
 
     @Property(str, notify=stateChanged)
     def state(self) -> str:
@@ -167,16 +148,15 @@ class AssistantController(QObject):
         return (
             self._tts_service.installed
             and self._stt_service.installed
-            and self._llm_service.installed
         )
 
     @Property(bool, notify=modelsReadyChanged)
     def modelsReady(self) -> bool:
-        return self._tts_ready and self._stt_ready and self._llm_ready
+        return self._tts_ready and self._stt_ready
 
     @Property(bool, notify=modelsLoadingChanged)
     def modelsLoading(self) -> bool:
-        return self._tts_loading or self._stt_loading or self._llm_loading
+        return self._tts_loading or self._stt_loading
 
     @Property(bool, notify=modelsDownloadingChanged)
     def modelsDownloading(self) -> bool:
@@ -189,6 +169,10 @@ class AssistantController(QObject):
     @Property(str, notify=responseChanged)
     def response(self) -> str:
         return self._response
+
+    @Property(str, notify=activeAgentChanged)
+    def activeAgent(self) -> str:
+        return self._active_agent
 
     @Property(str, notify=languageChanged)
     def language(self) -> str:
@@ -211,11 +195,11 @@ class AssistantController(QObject):
         self.transcriptChanged.emit()
         self._response = ""
         self.responseChanged.emit()
+        self._set_active_agent("")
 
         try:
             self._tts_service.set_language(language)
             self._stt_service.set_language(language)
-            self._llm_service.set_language(language)
         except RuntimeError as exc:
             self._set_status(str(exc))
             return
@@ -225,7 +209,6 @@ class AssistantController(QObject):
             self._set_status("Chargement du moteur vocal local...")
             self._tts_service.initialize_async()
             self._stt_service.initialize_async()
-            self._llm_service.initialize_async()
         else:
             self._set_status(
                 "Voix anglaise non installée. Cliquez sur télécharger."
@@ -245,8 +228,6 @@ class AssistantController(QObject):
                     self._stt_service.initialize_async()
                 if not self._tts_service.initialized:
                     self._tts_service.initialize_async()
-                if not self._llm_service.initialized:
-                    self._llm_service.initialize_async()
             return
 
         self._models_downloading = True
@@ -257,7 +238,6 @@ class AssistantController(QObject):
             for name, installed in (
                 ("tts", self._tts_service.installed),
                 ("stt", self._stt_service.installed),
-                ("llm", self._llm_service.installed),
             )
             if not installed
         ]
@@ -273,6 +253,7 @@ class AssistantController(QObject):
         if not self.modelsReady:
             self._set_status("Chargement des modèles locaux en cours...")
             return
+        self._set_active_agent("")
         try:
             self._recorder.start()
         except Exception as exc:
@@ -305,6 +286,7 @@ class AssistantController(QObject):
     @Slot()
     def audioPlaybackFinished(self) -> None:
         self._tts_service.playback_finished()
+        self._set_active_agent("")
         self._set_state("idle")
 
     def _on_tts_state_changed(self, state: str) -> None:
@@ -338,30 +320,11 @@ class AssistantController(QObject):
             self.modelsReadyChanged.emit()
         self._update_models_ready_status(state)
 
-    def _on_llm_state_changed(self, state: str) -> None:
-        loading_before = self.modelsLoading
-        ready_before = self.modelsReady
-        if state == "loading":
-            self._llm_loading, self._llm_ready = True, False
-        elif state == "ready":
-            self._llm_loading, self._llm_ready = False, True
-        elif state in ("error", "not_installed"):
-            self._llm_loading, self._llm_ready = False, False
-        if loading_before != self.modelsLoading:
-            self.modelsLoadingChanged.emit()
-        if ready_before != self.modelsReady:
-            self.modelsReadyChanged.emit()
-        self._update_models_ready_status(state)
-
     def _on_tts_installed(self) -> None:
         self.modelsInstalledChanged.emit()
         self._start_next_model_download()
 
     def _on_stt_installed(self) -> None:
-        self.modelsInstalledChanged.emit()
-        self._start_next_model_download()
-
-    def _on_llm_installed(self) -> None:
         self.modelsInstalledChanged.emit()
         self._start_next_model_download()
 
@@ -376,9 +339,6 @@ class AssistantController(QObject):
         elif model == "stt":
             self._set_status("Installation locale de Parakeet...")
             self._stt_service.download()
-        else:
-            self._set_status("Installation locale de Needle 2...")
-            self._llm_service.download()
 
     def _finish_model_installation(self) -> None:
         self._downloads_complete = True
@@ -418,13 +378,13 @@ class AssistantController(QObject):
             self._set_status("Je n'ai rien entendu. Réessayez.")
             self._set_state("idle")
             return
-        self._set_status("Analyse locale de votre demande...")
-        self._llm_service.respond(self._transcript)
-
-    def _on_llm_response_ready(self, text: str) -> None:
-        self._response = text.strip()
+        self._set_status("Interprétation locale de votre demande...")
+        result = self._interaction_service.respond(self._transcript, self._language)
+        self._set_active_agent(result.agent_name or "")
+        self._response = result.response.strip()
         self.responseChanged.emit()
         if not self._response:
+            self._set_active_agent("")
             fallback = self._response_catalog.responses(self._language).get(
                 "unknown",
                 "Aucune réponse locale n'est configurée.",
@@ -432,7 +392,10 @@ class AssistantController(QObject):
             self._set_status(fallback)
             self._set_state("idle")
             return
-        self._set_status("Réponse de T.A.R.S....")
+        if self._active_agent:
+            self._set_status(self._agent_connection_status())
+        else:
+            self._set_status("Réponse de T.A.R.S....")
         self._tts_service.speak(self._response)
 
     def _on_speech_finished(self, audio_path: str) -> None:
@@ -445,18 +408,12 @@ class AssistantController(QObject):
         prefix = "Pocket TTS error" if self._language == "en" else "Erreur Pocket TTS"
         self._set_status(f"{prefix} : {error}")
         if self._state == "speaking":
+            self._set_active_agent("")
             self._set_state("idle")
 
     def _on_stt_error(self, error: str) -> None:
         logger.error("Erreur Parakeet : %s", error)
         prefix = "Parakeet error" if self._language == "en" else "Erreur Parakeet"
-        self._set_status(f"{prefix} : {error}")
-        if self._state == "thinking":
-            self._set_state("idle")
-
-    def _on_llm_error(self, error: str) -> None:
-        logger.error("Erreur Needle 2 : %s", error)
-        prefix = "Needle 2 error" if self._language == "en" else "Erreur Needle 2"
         self._set_status(f"{prefix} : {error}")
         if self._state == "thinking":
             self._set_state("idle")
@@ -473,6 +430,16 @@ class AssistantController(QObject):
             self._status = value
             self.statusChanged.emit()
 
+    def _set_active_agent(self, name: str) -> None:
+        if name != self._active_agent:
+            self._active_agent = name
+            self.activeAgentChanged.emit()
+
+    def _agent_connection_status(self) -> str:
+        if self._language == "en":
+            return f"Connected to {self._active_agent}."
+        return f"Connecté à {self._active_agent}."
+
     def shutdown(self) -> None:
         if self._recorder.recording:
             try:
@@ -481,4 +448,3 @@ class AssistantController(QObject):
                 logger.exception("Erreur lors de l'arrêt du microphone.")
         self._tts_service.shutdown()
         self._stt_service.shutdown()
-        self._llm_service.shutdown()
