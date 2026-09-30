@@ -85,6 +85,20 @@ Add `--output /path/to/destination` to choose another output folder. Build on th
 
 The export includes Python, Qt/QML, the robot icon, Parakeet/NeMo, Pocket TTS and their dependencies. **Distribute the entire `TARS` folder or `TARS.app`**, including its libraries; copying only the executable will not work. Bundles can occupy several gigabytes. Linux still needs compatible system display/audio libraries and a tray-enabled desktop. On macOS, allow microphone access when prompted; signing/notarization for distribution is a separate release step.
 
+### Install on Linux and clean up exports
+
+After building, close any running exported TARS application and run:
+
+```bash
+uv run python scripts/install_linux.py --clean-dist
+```
+
+This moves the latest Linux bundle from `dist` to `~/.local/lib/tars` and adds **T.A.R.S.** to your desktop's application menu (including the Linux Mint start menu). Launch it from the menu or run `~/.local/lib/tars/TARS`; the project folder is no longer needed to run the installed application. The launcher lives in `${XDG_DATA_HOME:-~/.local/share}/applications/tars.desktop`. No administrator privileges are needed.
+
+`--clean-dist` removes older generated Linux bundles from the project's `dist` folder after installation, freeing several gigabytes per export. Other files and Windows/macOS exports are preserved. Omit this option to keep older exports. To install an export from another location, pass its complete bundle folder: `uv run python scripts/install_linux.py /path/to/TARS`. Repeat after a new build to replace the installed version. Personal settings, API keys and downloaded models stay in `~/.tars`.
+
+To uninstall, remove `~/.local/lib/tars` and the `tars.desktop` launcher. Remove `~/.tars` separately only if you also want to delete personal settings and downloaded voice resources.
+
 Personal settings and API keys are never embedded in the export. Source and exported applications share `~/.tars/config` for settings and `~/.tars/{stt,tts}` for downloaded resources on the same computer. Legacy checkout settings in `config/` are imported once when you next run the source application or build an export. On another computer, configure the key/shortcut and download the required English/French resources from the interface. STT/TTS then work offline; GLM still requires internet access. `TARS_DATA_DIR` can override the writable data folder.
 
 To check a Linux bundle from a terminal:
