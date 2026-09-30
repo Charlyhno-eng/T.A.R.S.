@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -30,20 +28,7 @@ class LLMProvider(Protocol):
 
 
 def _api_key() -> str:
-    saved = Settings().llm_api_key()
-    if saved:
-        return saved
-    key = os.environ.get("ZAI_API_KEY", "").strip()
-    if key:
-        return key
-    env_file = Path(__file__).resolve().parents[2] / ".env"
-    try:
-        for line in env_file.read_text().splitlines():
-            if line.startswith("ZAI_API_KEY="):
-                return line.partition("=")[2].strip().strip('"\'')
-    except OSError:
-        pass
-    return ""
+    return Settings().llm_api_key()
 
 
 def complete(text: str, language: str, history: list[dict[str, str]],
@@ -52,7 +37,7 @@ def complete(text: str, language: str, history: list[dict[str, str]],
     config = config or LLMConfig()
     key = _api_key()
     if not key:
-        raise RuntimeError("Z.AI API key is missing. Add it in Settings or set ZAI_API_KEY.")
+        raise RuntimeError("Z.AI API key is missing. Add it in Settings.")
     messages = [
         {
             "role": "system",

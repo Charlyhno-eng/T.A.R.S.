@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,13 +12,11 @@ from core.settings import Settings
 
 
 class LLMServiceTests(unittest.TestCase):
-    def test_saved_key_takes_precedence_and_can_be_removed(self) -> None:
+    def test_saved_key_is_used_and_can_be_removed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             settings = Settings()
             settings._key_path = Path(directory) / "llm_api_key"
-            with patch("core.llm_service.Settings", return_value=settings), patch.dict(
-                os.environ, {"ZAI_API_KEY": "environment-key"}
-            ), patch("core.llm_service.urlopen", return_value=io.BytesIO(
+            with patch("core.llm_service.Settings", return_value=settings), patch("core.llm_service.urlopen", return_value=io.BytesIO(
                 b'{"choices":[{"message":{"content":"OK"}}]}'
             )) as request_mock:
                 settings.set_llm_api_key(" saved-key ")
@@ -30,12 +27,20 @@ class LLMServiceTests(unittest.TestCase):
                                  "another-model")
                 settings.set_llm_api_key("")
                 self.assertEqual(settings.llm_api_key(), "")
+                with self.assertRaisesRegex(RuntimeError, "Add it in Settings"):
+                    complete("Hello", "en", [])
 
     def test_sends_transcription_and_reads_reply(self) -> None:
         payload = io.BytesIO(b'{"choices":[{"message":{"content":" Hello there. "}}]}')
-        with patch.dict(os.environ, {"ZAI_API_KEY": "test-key"}), patch(
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "core.llm_service.Settings"
+        ) as settings_mock, patch(
             "core.llm_service.urlopen", return_value=payload
         ) as request_mock:
+            settings = Settings()
+            settings._key_path = Path(directory) / "llm_api_key"
+            settings.set_llm_api_key("test-key")
+            settings_mock.return_value = settings
             answer = complete("Hello", "en", [])
 
         self.assertEqual(answer, "Hello there.")
@@ -52,8 +57,14 @@ class LLMServiceTests(unittest.TestCase):
 
     def test_empty_reply_fails_without_speech(self) -> None:
         payload = io.BytesIO(b'{"choices":[{"message":{"content":" "}}]}')
-        with patch.dict(os.environ, {"ZAI_API_KEY": "test-key"}), patch(
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "core.llm_service.Settings"
+        ) as settings_mock, patch(
             "core.llm_service.urlopen", return_value=payload
         ):
+            settings = Settings()
+            settings._key_path = Path(directory) / "llm_api_key"
+            settings.set_llm_api_key("test-key")
+            settings_mock.return_value = settings
             with self.assertRaisesRegex(RuntimeError, "empty response"):
                 complete("Hello", "en", [])
