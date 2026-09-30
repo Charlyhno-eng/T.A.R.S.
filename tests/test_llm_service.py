@@ -21,6 +21,9 @@ class LLMServiceTests(unittest.TestCase):
         request = request_mock.call_args.args[0]
         body = json.loads(request.data)
         self.assertEqual(body["model"], "glm-5.3-flash")
+        system_prompt = body["messages"][0]["content"]
+        self.assertIn("You are TARS", system_prompt)
+        self.assertIn("without periods", system_prompt)
         self.assertEqual(body["messages"][-1], {"role": "user", "content": "Hello"})
         self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
 

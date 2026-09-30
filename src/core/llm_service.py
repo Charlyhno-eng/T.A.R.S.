@@ -36,7 +36,9 @@ def complete(text: str, language: str, history: list[dict[str, str]]) -> str:
     messages = [
         {
             "role": "system",
-            "content": "You are T.A.R.S., a concise voice assistant. Reply in "
+            "content": "You are TARS, a concise voice assistant. Your spoken name is TARS "
+            "without periods; always use this short form when referring to yourself in "
+            "responses because the text will be read aloud. Reply in "
             + ("French" if language == "fr" else "English")
             + ". Use plain text suitable for speech synthesis.",
         },
