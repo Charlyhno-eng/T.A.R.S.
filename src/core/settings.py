@@ -51,7 +51,7 @@ class Settings:
         return self.DEFAULT_LANGUAGE
 
     def set_language(self, language: str) -> None:
-        """Set the language used by the provider."""
+        """Persist the selected application and voice language."""
         if language not in self.SUPPORTED_LANGUAGES:
             raise ValueError(f"Langue non prise en charge : {language}")
         self._path.parent.mkdir(parents=True, exist_ok=True)
