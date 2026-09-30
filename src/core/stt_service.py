@@ -39,19 +39,23 @@ class STTService(QObject):
 
     @property
     def installed(self) -> bool:
+        """Return whether required local resources are installed."""
         return self._adapter.installed
 
     @property
     def initialized(self) -> bool:
+        """Return whether the provider is ready."""
         with self._lock:
             return self._initialized
 
     def set_language(self, language: str) -> None:
+        """Set the language used by the provider."""
         if language not in {"fr", "en"}:
             raise ValueError(f"Unsupported Parakeet language: {language}")
         self._language = language
 
     def initialize_async(self) -> None:
+        """Load the installed speech recognizer in a background thread."""
         if not self.installed:
             self.stateChanged.emit("not_installed")
             return
@@ -82,6 +86,7 @@ class STTService(QObject):
             self.errorOccurred.emit(str(exc))
 
     def download(self) -> None:
+        """Download and prepare the provider resources."""
         with self._lock:
             if self._installing:
                 return
@@ -112,6 +117,7 @@ class STTService(QObject):
             self.stateChanged.emit("not_installed")
 
     def transcribe(self, audio_path: Path) -> None:
+        """Convert an audio file into text."""
         with self._lock:
             if not self._initialized or self._transcribing:
                 self.errorOccurred.emit("Parakeet n'est pas disponible.")
@@ -142,6 +148,7 @@ class STTService(QObject):
                 self.stateChanged.emit("ready")
 
     def shutdown(self) -> None:
+        """Release provider resources."""
         self._adapter.shutdown()
         with self._lock:
             self._initialized = False

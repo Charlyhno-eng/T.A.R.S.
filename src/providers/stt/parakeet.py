@@ -28,12 +28,14 @@ class ParakeetProvider:
 
     @property
     def model_available(self) -> bool:
+        """Return whether the local model files are present."""
         return self._model_path.is_file()
 
     def download(
         self,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
+        """Download and prepare the provider resources."""
         from huggingface_hub import hf_hub_download
 
         if on_status:
@@ -50,6 +52,7 @@ class ParakeetProvider:
         self,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
+        """Load the installed provider resources."""
         if self._model is not None:
             return
         if not self.model_available:
@@ -69,6 +72,7 @@ class ParakeetProvider:
         self._release_loading_memory()
 
     def transcribe(self, audio_path: Path, language: str = "en") -> str:
+        """Convert an audio file into text."""
         if self._model is None:
             raise RuntimeError("Parakeet n'est pas initialisé.")
 
@@ -141,6 +145,7 @@ class ParakeetProvider:
         )
 
     def shutdown(self) -> None:
+        """Release provider resources."""
         self._model = None
 
     @staticmethod
@@ -164,6 +169,6 @@ class ParakeetProvider:
         except ImportError as exc:
             raise RuntimeError(
                 "La dépendance Parakeet est absente. Exécutez "
-                "'pip install -r requirements.txt' puis relancez T.A.R.S."
+                "'uv sync' puis relancez T.A.R.S."
             ) from exc
         return nemo_asr

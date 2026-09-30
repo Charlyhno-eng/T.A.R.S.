@@ -34,6 +34,7 @@ class PocketTTSProvider:
         self._loaded_language: str | None = None
 
     def resources_available(self, language: str) -> bool:
+        """Return whether resources exist for the selected language."""
         return all(
             path.is_file()
             for path in (
@@ -49,6 +50,7 @@ class PocketTTSProvider:
         language: str,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
+        """Download and prepare the provider resources."""
         from huggingface_hub import hf_hub_download
 
         info = self._language_info(language)
@@ -88,6 +90,7 @@ class PocketTTSProvider:
         language: str,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
+        """Load the installed provider resources."""
         if self.initialized and self._loaded_language == language:
             return
         self.shutdown()
@@ -111,9 +114,11 @@ class PocketTTSProvider:
 
     @property
     def initialized(self) -> bool:
+        """Return whether the provider is ready."""
         return self._model is not None and self._voice_state is not None
 
     def generate(self, text: str, output_path: Path) -> Path:
+        """Generate an audio file from text."""
         if not self.initialized or self._model is None:
             raise RuntimeError("Pocket TTS n'est pas initialisé.")
         import scipy.io.wavfile
@@ -128,6 +133,7 @@ class PocketTTSProvider:
         return output_path
 
     def shutdown(self) -> None:
+        """Release provider resources."""
         self._voice_state = None
         self._model = None
         self._loaded_language = None

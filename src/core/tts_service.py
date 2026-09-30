@@ -55,31 +55,14 @@ class TTSService(QObject):
 
     @property
     def initialized(self) -> bool:
+        """Return whether the provider is ready."""
         with self._lock:
             return self._initialized
 
     @property
-    def initializing(self) -> bool:
-        with self._lock:
-            return self._initializing
-
-    @property
-    def installing(self) -> bool:
-        with self._lock:
-            return self._installing
-
-    @property
-    def speaking(self) -> bool:
-        with self._lock:
-            return self._speaking
-
-    @property
     def installed(self) -> bool:
+        """Return whether required local resources are installed."""
         return self._adapter.installed
-
-    @property
-    def language(self) -> str:
-        return self._adapter.language
 
     def set_language(self, language: str) -> None:
         """Switch voices without keeping the previous model in memory."""
@@ -245,6 +228,7 @@ class TTSService(QObject):
         self,
         text: str,
     ) -> None:
+        """Generate speech from the supplied text."""
         text = text.strip()
 
         if not text:
@@ -260,9 +244,7 @@ class TTSService(QObject):
                 self._speaking = True
 
         if should_reject:
-            self.statusChanged.emit(
-                "Le moteur vocal n'est pas disponible."
-            )
+            self.errorOccurred.emit("Le moteur vocal n'est pas disponible.")
             return
 
         self.stateChanged.emit("speaking")
@@ -353,6 +335,7 @@ class TTSService(QObject):
             audio_path.unlink(missing_ok=True)
 
     def shutdown(self) -> None:
+        """Release provider resources."""
         try:
             self._adapter.shutdown()
         except Exception:

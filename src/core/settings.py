@@ -15,6 +15,7 @@ class Settings:
         self._path = Path(__file__).resolve().parents[2] / "config" / "config.toml"
 
     def language(self) -> str:
+        """Return the selected language."""
         data = self._read()
         application = data.get("application", {})
         if not isinstance(application, dict):
@@ -25,6 +26,7 @@ class Settings:
         return self.DEFAULT_LANGUAGE
 
     def set_language(self, language: str) -> None:
+        """Set the language used by the provider."""
         if language not in self.SUPPORTED_LANGUAGES:
             raise ValueError(f"Langue non prise en charge : {language}")
         self._path.parent.mkdir(parents=True, exist_ok=True)

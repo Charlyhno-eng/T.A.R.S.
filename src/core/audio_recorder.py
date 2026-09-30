@@ -25,9 +25,11 @@ class AudioRecorder(QObject):
 
     @property
     def recording(self) -> bool:
+        """Return whether microphone recording is active."""
         return self._source is not None
 
     def start(self) -> None:
+        """Start microphone recording."""
         if self.recording:
             return
 
@@ -59,6 +61,7 @@ class AudioRecorder(QObject):
             self._chunks.append(bytes(self._device.readAll().data()))
 
     def stop(self) -> Path:
+        """Stop recording and return the audio file."""
         if not self.recording:
             raise RuntimeError("Aucun enregistrement n'est en cours.")
 

@@ -41,9 +41,11 @@ class TTSAdapter:
 
     @property
     def language(self) -> str:
+        """Return the selected language."""
         return self._language
 
     def set_language(self, language: str) -> None:
+        """Set the language used by the provider."""
         if language == self._language:
             return
         if language not in PocketTTSProvider.LANGUAGES:
@@ -147,10 +149,12 @@ class TTSAdapter:
         text: str,
         output_path: Path,
     ) -> Path:
+        """Generate an audio file from text."""
         return self._provider.generate(
             text=text,
             output_path=output_path,
         )
 
     def shutdown(self) -> None:
+        """Release provider resources."""
         self._provider.shutdown()

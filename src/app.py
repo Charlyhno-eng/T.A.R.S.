@@ -17,6 +17,7 @@ MAIN_QML = UI_DIR / "Main.qml"
 
 
 def configure_logging() -> None:
+    """Configure application and dependency logging."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s:%(name)s:%(message)s",
@@ -32,6 +33,7 @@ def configure_logging() -> None:
 
 
 def main() -> int:
+    """Launch the Qt application and return its exit code."""
     configure_logging()
 
     app = QGuiApplication(sys.argv)

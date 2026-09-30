@@ -5,8 +5,7 @@ import logging
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from core.audio_recorder import AudioRecorder
-from core.interaction_service import InteractionService
-from core.responses import ResponseCatalog
+from core.llm_service import LLMService
 from core.settings import Settings
 from core.stt_service import STTService
 from core.tts_service import TTSService
@@ -26,7 +25,6 @@ class AssistantController(QObject):
     modelsDownloadingChanged = Signal()
     transcriptChanged = Signal()
     responseChanged = Signal()
-    activeAgentChanged = Signal()
     audioPathChanged = Signal(str)
     languageChanged = Signal()
 
@@ -73,19 +71,17 @@ class AssistantController(QObject):
         "La langue ne peut être modifiée que lorsque T.A.R.S. est en veille.": "The language can only be changed while T.A.R.S. is on standby.",
         "Voix anglaise non installée. Cliquez sur télécharger.": "English voice is not installed. Click download.",
         "Voix française non installée. Cliquez sur télécharger.": "French voice is not installed. Click download.",
-        "Interprétation locale de votre demande...": "Understanding your request locally...",
+        "Réponse de GLM en cours...": "Waiting for GLM response...",
     }
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._settings = Settings()
-        self._response_catalog = ResponseCatalog()
         self._language = self._settings.language()
         self._state = "idle"
         self._status = "Initialisation..."
         self._transcript = ""
         self._response = ""
-        self._active_agent = ""
         self._tts_ready = False
         self._stt_ready = False
         self._tts_loading = False
@@ -97,8 +93,10 @@ class AssistantController(QObject):
 
         self._tts_service = TTSService(parent=self, language=self._language)
         self._stt_service = STTService(parent=self, language=self._language)
-        self._interaction_service = InteractionService(self._response_catalog)
         self._recorder = AudioRecorder(parent=self)
+        self._llm_service = LLMService(parent=self)
+        self._llm_service.responseReady.connect(self._on_llm_response)
+        self._llm_service.errorOccurred.connect(self._on_llm_error)
 
         self._tts_service.statusChanged.connect(self._set_status)
         self._tts_service.stateChanged.connect(self._on_tts_state_changed)
@@ -137,14 +135,17 @@ class AssistantController(QObject):
 
     @Property(str, notify=stateChanged)
     def state(self) -> str:
+        """Return the current interaction state."""
         return self._state
 
     @Property(str, notify=statusChanged)
     def status(self) -> str:
+        """Return the current status message."""
         return self._status
 
     @Property(bool, notify=modelsInstalledChanged)
     def modelsInstalled(self) -> bool:
+        """Return whether both local models are installed."""
         return (
             self._tts_service.installed
             and self._stt_service.installed
@@ -152,34 +153,37 @@ class AssistantController(QObject):
 
     @Property(bool, notify=modelsReadyChanged)
     def modelsReady(self) -> bool:
+        """Return whether both local models are loaded."""
         return self._tts_ready and self._stt_ready
 
     @Property(bool, notify=modelsLoadingChanged)
     def modelsLoading(self) -> bool:
+        """Return whether a local model is loading."""
         return self._tts_loading or self._stt_loading
 
     @Property(bool, notify=modelsDownloadingChanged)
     def modelsDownloading(self) -> bool:
+        """Return whether model installation is running."""
         return self._models_downloading
 
     @Property(str, notify=transcriptChanged)
     def transcript(self) -> str:
+        """Return the latest recognized speech."""
         return self._transcript
 
     @Property(str, notify=responseChanged)
     def response(self) -> str:
+        """Return the latest generated answer."""
         return self._response
-
-    @Property(str, notify=activeAgentChanged)
-    def activeAgent(self) -> str:
-        return self._active_agent
 
     @Property(str, notify=languageChanged)
     def language(self) -> str:
+        """Return the selected language."""
         return self._language
 
     @Slot(str)
     def setLanguage(self, language: str) -> None:
+        """Select a language while the assistant is idle."""
         if language not in Settings.SUPPORTED_LANGUAGES or language == self._language:
             return
         if self._state != "idle" or self._models_downloading:
@@ -195,7 +199,7 @@ class AssistantController(QObject):
         self.transcriptChanged.emit()
         self._response = ""
         self.responseChanged.emit()
-        self._set_active_agent("")
+        self._llm_service.reset()
 
         try:
             self._tts_service.set_language(language)
@@ -245,6 +249,7 @@ class AssistantController(QObject):
 
     @Slot()
     def startListening(self) -> None:
+        """Start recording a voice request."""
         if self._state != "idle":
             return
         if not self.modelsInstalled:
@@ -253,18 +258,22 @@ class AssistantController(QObject):
         if not self.modelsReady:
             self._set_status("Chargement des modèles locaux en cours...")
             return
-        self._set_active_agent("")
         try:
             self._recorder.start()
         except Exception as exc:
             logger.exception("Impossible de démarrer l'enregistrement.")
             self._set_status(str(exc))
             return
+        self._transcript = ""
+        self.transcriptChanged.emit()
+        self._response = ""
+        self.responseChanged.emit()
         self._set_status("Parlez maintenant, puis relâchez le bouton.")
         self._set_state("listening")
 
     @Slot()
     def stopListening(self) -> None:
+        """Stop recording and begin transcription."""
         if self._state != "listening":
             return
         try:
@@ -285,8 +294,8 @@ class AssistantController(QObject):
 
     @Slot()
     def audioPlaybackFinished(self) -> None:
+        """Return to idle after audio playback ends."""
         self._tts_service.playback_finished()
-        self._set_active_agent("")
         self._set_state("idle")
 
     def _on_tts_state_changed(self, state: str) -> None:
@@ -378,25 +387,20 @@ class AssistantController(QObject):
             self._set_status("Je n'ai rien entendu. Réessayez.")
             self._set_state("idle")
             return
-        self._set_status("Interprétation locale de votre demande...")
-        result = self._interaction_service.respond(self._transcript, self._language)
-        self._set_active_agent(result.agent_name or "")
-        self._response = result.response.strip()
+        self._set_status("Réponse de GLM en cours...")
+        self._llm_service.respond(self._transcript, self._language)
+
+    def _on_llm_response(self, answer: str) -> None:
+        self._response = answer
         self.responseChanged.emit()
-        if not self._response:
-            self._set_active_agent("")
-            fallback = self._response_catalog.responses(self._language).get(
-                "unknown",
-                "Aucune réponse locale n'est configurée.",
-            )
-            self._set_status(fallback)
-            self._set_state("idle")
-            return
-        if self._active_agent:
-            self._set_status(self._agent_connection_status())
-        else:
-            self._set_status("Réponse de T.A.R.S....")
-        self._tts_service.speak(self._response)
+        self._tts_service.speak(answer)
+
+    def _on_llm_error(self, error: str) -> None:
+        logger.error("Erreur GLM : %s", error)
+        self._transcript = ""
+        self.transcriptChanged.emit()
+        self._set_status(f"GLM: {error}")
+        self._set_state("idle")
 
     def _on_speech_finished(self, audio_path: str) -> None:
         self._set_status("Réponse de T.A.R.S....")
@@ -407,8 +411,7 @@ class AssistantController(QObject):
         logger.error("Erreur Pocket TTS : %s", error)
         prefix = "Pocket TTS error" if self._language == "en" else "Erreur Pocket TTS"
         self._set_status(f"{prefix} : {error}")
-        if self._state == "speaking":
-            self._set_active_agent("")
+        if self._state in ("thinking", "speaking"):
             self._set_state("idle")
 
     def _on_stt_error(self, error: str) -> None:
@@ -430,17 +433,8 @@ class AssistantController(QObject):
             self._status = value
             self.statusChanged.emit()
 
-    def _set_active_agent(self, name: str) -> None:
-        if name != self._active_agent:
-            self._active_agent = name
-            self.activeAgentChanged.emit()
-
-    def _agent_connection_status(self) -> str:
-        if self._language == "en":
-            return f"Connected to {self._active_agent}."
-        return f"Connecté à {self._active_agent}."
-
     def shutdown(self) -> None:
+        """Release provider resources."""
         if self._recorder.recording:
             try:
                 self._recorder.cancel()

@@ -21,6 +21,7 @@ class STTAdapter:
 
     @property
     def installed(self) -> bool:
+        """Return whether required local resources are installed."""
         return (
             self._installation_marker.exists()
             and self._provider.model_available
@@ -30,6 +31,7 @@ class STTAdapter:
         self,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
+        """Load the installed provider."""
         if not self.installed:
             raise RuntimeError(
                 "Parakeet n'est pas installé. Cliquez sur le bouton "
@@ -41,15 +43,18 @@ class STTAdapter:
         self,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
+        """Download and prepare the provider resources."""
         self._provider.shutdown()
         self._provider.download(on_status=on_status)
         self._provider.load(on_status=on_status)
         self._write_installation_marker()
 
     def transcribe(self, audio_path: Path, language: str = "en") -> str:
+        """Convert an audio file into text."""
         return self._provider.transcribe(audio_path, language=language)
 
     def shutdown(self) -> None:
+        """Release provider resources."""
         self._provider.shutdown()
 
     def _write_installation_marker(self) -> None:

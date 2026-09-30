@@ -5,15 +5,14 @@
 ---
 
 T.A.R.S. is an extremely lightweight local voice assistant built with Python, PySide6, and QML.
-It uses Parakeet TDT 0.6B v3 for speech-to-text (STT) and Pocket TTS for text-to-speech (TTS).
+It uses Parakeet TDT 0.6B v3 for speech-to-text (STT), GLM 5.3 Flash for responses, and Pocket TTS for text-to-speech (TTS).
 
-After the models have been installed, the application works offline and runs entirely on the CPU.
+STT and TTS run locally on the CPU. GLM requires an internet connection and a Z.AI API key.
 English is the default language, and Parakeet generally performs better in English than in French.
 French remains available from the interface.
 
 T.A.R.S. is not a finished product, but an accessible base for building a personal assistant.
-The project is designed to be customized with your own Python agents, voice commands, and responses.
-Agent 1 and Agent 2 provide simple examples to start from.
+The interface sends each transcription to GLM and speaks its response.
 
 ---
 
@@ -27,22 +26,22 @@ Agent 1 and Agent 2 provide simple examples to start from.
 
 ### Install
 
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.12, then run:
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
+
+### Configure GLM
+
+Set `ZAI_API_KEY` in your environment or create an ignored `.env` file at the project root containing `ZAI_API_KEY=your-key`. The configured model is `glm-5.3-flash`.
 
 ### Run
 
 ```bash
-python3 src/app.py
+uv run python src/app.py
 ```
 
-On first launch, use the download button to install the local models. Hold the central sphere while speaking, then release it to receive a response.
-
-## Customizing agents
-
-Create your own Python agent under `src/agents/`, then register it in `src/agents/registry.py`. Add its aliases and contact verbs to `config/responses.toml` so T.A.R.S. can recognize it by voice. Use `Agent 1` and `Agent 2` as examples, and adapt the agent’s `run` method to connect it to your own tools or services.
+On first launch, use the download button to install the local models. Hold the animated central orb while speaking, then release it to hear the GLM response. The orb changes color and shape as T.A.R.S. listens, processes speech, and speaks.
 
 ![Example](assets/tars-architecture.gif)

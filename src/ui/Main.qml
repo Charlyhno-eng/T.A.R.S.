@@ -107,8 +107,7 @@ ApplicationWindow {
 
     Canvas {
         anchors.fill: parent
-
-        opacity: 0.06
+        opacity: 0.045
 
         onPaint: {
             var ctx = getContext("2d")
@@ -120,7 +119,7 @@ ApplicationWindow {
 
             ctx.lineWidth = 1
 
-            var step = 40
+            var step = 48
 
             for (
                 var x = 0;
@@ -144,6 +143,40 @@ ApplicationWindow {
                 ctx.stroke()
             }
         }
+    }
+
+    Rectangle {
+        anchors.centerIn: centralItem
+        width: 560
+        height: 560
+        radius: width / 2
+        color: "transparent"
+        border.width: 1
+        border.color: Qt.rgba(Theme.colorIdle.r, Theme.colorIdle.g,
+                              Theme.colorIdle.b, 0.08)
+    }
+
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 122
+        text: assistant.language === "en" ? "YOUR LOCAL VOICE ASSISTANT" :
+                                             "VOTRE ASSISTANT VOCAL LOCAL"
+        color: Theme.textSecondary
+        font.family: Theme.fontFamily
+        font.pixelSize: 11
+        font.letterSpacing: 4
+    }
+
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 145
+        text: assistant.language === "en" ? "How can I help?" : "Comment puis-je aider ?"
+        color: Theme.textPrimary
+        font.family: Theme.fontFamily
+        font.pixelSize: 28
+        font.weight: Font.DemiBold
     }
 
     TopBar {
@@ -319,13 +352,13 @@ ApplicationWindow {
 
         anchors.centerIn: parent
 
-        width: 380
-        height: 380
+        width: 360
+        height: 360
 
         ParticleRing {
             anchors.centerIn: parent
 
-            radius: 175
+            radius: 163
             animationsEnabled: window.active
 
             particleColor:
@@ -375,22 +408,16 @@ ApplicationWindow {
             if (!assistant.modelsReady)
                 return assistant.status
 
-            if (
-                window.assistantState ===
-                "idle"
-            ) {
+            if (window.assistantState === "idle") {
+                if (assistant.transcript)
+                    return assistant.transcript
                 return english
-                    ? "HOLD THE SPHERE TO SPEAK"
-                    : "MAINTENEZ LA SPHÈRE POUR PARLER"
+                    ? "HOLD THE ORB TO SPEAK"
+                    : "MAINTENEZ L'ORBE POUR PARLER"
             }
 
-            if (
-                window.assistantState === "speaking" &&
-                assistant.response
-            ) {
-                return (english ? "T.A.R.S.: " : "T.A.R.S. : ") +
-                    assistant.response
-            }
+            if (window.assistantState === "speaking" && assistant.response)
+                return "T.A.R.S.: " + assistant.response
 
             return assistant.status
         }
@@ -403,9 +430,14 @@ ApplicationWindow {
         font.family:
             Theme.fontFamily
 
-        font.pixelSize: 11
+        font.pixelSize: 12
 
-        font.letterSpacing: 2
+        font.letterSpacing: 1.2
+
+        width: Math.min(parent.width - 80, 620)
+        wrapMode: Text.WordWrap
+        maximumLineCount: 3
+        elide: Text.ElideRight
 
         horizontalAlignment:
             Text.AlignHCenter
@@ -505,12 +537,4 @@ ApplicationWindow {
         language: assistant.language
     }
 
-    AgentSessionPanel {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: statusPanel.top
-        anchors.bottomMargin: 18
-
-        activeAgent: assistant.activeAgent
-        language: assistant.language
-    }
 }
