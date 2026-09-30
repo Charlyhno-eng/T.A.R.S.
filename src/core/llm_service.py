@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import threading
+from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
 from providers.llm.adapter import LLMAdapter
-from providers.llm.base import LLMProvider
 
 
 class LLMService(QObject):
@@ -14,7 +14,7 @@ class LLMService(QObject):
     errorOccurred = Signal(str)
 
     def __init__(self, parent: QObject | None = None,
-                 provider: LLMProvider | None = None) -> None:
+                 provider: Any | None = None) -> None:
         super().__init__(parent)
         self._provider = provider if provider is not None else LLMAdapter()
         self._history: list[dict[str, str]] = []

@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from core.llm_service import LLMService
-from providers.llm.glm import GLMProvider
+from providers.llm.glm_5_3_flash import GLMProvider
 from providers.stt.adapter import STTAdapter
 from providers.tts.adapter import TTSAdapter
 

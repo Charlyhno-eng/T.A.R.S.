@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from providers.llm.glm import LLMConfig, complete
+from providers.llm.glm_5_3_flash import LLMConfig, complete
 from core.settings import Settings
 
 
@@ -16,7 +16,7 @@ class LLMServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             settings = Settings()
             settings._key_path = Path(directory) / "llm_api_key"
-            with patch("providers.llm.glm.Settings", return_value=settings), patch("providers.llm.glm.urlopen", return_value=io.BytesIO(
+            with patch("providers.llm.glm_5_3_flash.Settings", return_value=settings), patch("providers.llm.glm_5_3_flash.urlopen", return_value=io.BytesIO(
                 b'{"choices":[{"message":{"content":"OK"}}]}'
             )) as request_mock:
                 settings.set_llm_api_key(" saved-key ")
@@ -33,9 +33,9 @@ class LLMServiceTests(unittest.TestCase):
     def test_sends_transcription_and_reads_reply(self) -> None:
         payload = io.BytesIO(b'{"choices":[{"message":{"content":" Hello there. "}}]}')
         with tempfile.TemporaryDirectory() as directory, patch(
-            "providers.llm.glm.Settings"
+            "providers.llm.glm_5_3_flash.Settings"
         ) as settings_mock, patch(
-            "providers.llm.glm.urlopen", return_value=payload
+            "providers.llm.glm_5_3_flash.urlopen", return_value=payload
         ) as request_mock:
             settings = Settings()
             settings._key_path = Path(directory) / "llm_api_key"
@@ -58,9 +58,9 @@ class LLMServiceTests(unittest.TestCase):
     def test_empty_reply_fails_without_speech(self) -> None:
         payload = io.BytesIO(b'{"choices":[{"message":{"content":" "}}]}')
         with tempfile.TemporaryDirectory() as directory, patch(
-            "providers.llm.glm.Settings"
+            "providers.llm.glm_5_3_flash.Settings"
         ) as settings_mock, patch(
-            "providers.llm.glm.urlopen", return_value=payload
+            "providers.llm.glm_5_3_flash.urlopen", return_value=payload
         ):
             settings = Settings()
             settings._key_path = Path(directory) / "llm_api_key"

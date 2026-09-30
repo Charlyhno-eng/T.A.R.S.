@@ -1,3 +1,1 @@
-"""Select the LLM provider used by the application."""
-
-from providers.llm.glm import GLMProvider as LLMAdapter
+from providers.llm.glm_5_3_flash import GLMProvider as LLMAdapter
