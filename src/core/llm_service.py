@@ -12,6 +12,7 @@ from PySide6.QtCore import QObject, Signal
 
 API_URL = "https://api.z.ai/api/paas/v4/chat/completions"
 MODEL = "glm-5.3-flash"
+MAX_RESPONSE_TOKENS = 160
 
 
 def _api_key() -> str:
@@ -38,7 +39,8 @@ def complete(text: str, language: str, history: list[dict[str, str]]) -> str:
             "role": "system",
             "content": "You are TARS, a concise voice assistant. Your spoken name is TARS "
             "without periods; always use this short form when referring to yourself in "
-            "responses because the text will be read aloud. Reply in "
+            "responses because the text will be read aloud. Answer in one or two "
+            "short sentences unless the user explicitly asks for more detail. Reply in "
             + ("French" if language == "fr" else "English")
             + ". Use plain text suitable for speech synthesis.",
         },
@@ -47,7 +49,12 @@ def complete(text: str, language: str, history: list[dict[str, str]]) -> str:
     ]
     request = Request(
         API_URL,
-        data=json.dumps({"model": MODEL, "messages": messages, "stream": False}).encode(),
+        data=json.dumps({
+            "model": MODEL,
+            "messages": messages,
+            "max_tokens": MAX_RESPONSE_TOKENS,
+            "stream": False,
+        }).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         method="POST",
     )

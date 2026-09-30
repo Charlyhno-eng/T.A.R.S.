@@ -13,6 +13,7 @@ French remains available from the interface.
 
 T.A.R.S. is not a finished product, but an accessible base for building a personal assistant.
 The interface sends each transcription to GLM and speaks its response.
+By default, GLM gives a brief spoken reply to reduce response time; you can ask for more detail when needed.
 The app displays its name as “T.A.R.S.”, while the assistant uses “TARS” without periods in spoken responses.
 
 ---
