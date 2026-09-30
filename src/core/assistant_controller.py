@@ -90,6 +90,7 @@ class AssistantController(QObject):
         self._downloads_complete = False
         self._download_queue: list[str] = []
         self._started = False
+        self._startup_stt_pending = False
 
         self._tts_service = TTSService(parent=self, language=self._language)
         self._stt_service = STTService(parent=self, language=self._language)
@@ -124,7 +125,7 @@ class AssistantController(QObject):
         self._started = True
         if self.modelsInstalled:
             self._set_status("Chargement des modèles locaux...")
-            self._stt_service.initialize_async()
+            self._startup_stt_pending = True
             self._tts_service.initialize_async()
         else:
             self._set_status("Modèles locaux non installés.")
@@ -311,6 +312,10 @@ class AssistantController(QObject):
             self.modelsLoadingChanged.emit()
         if ready_before != self.modelsReady:
             self.modelsReadyChanged.emit()
+
+        if self._startup_stt_pending and state in ("ready", "error", "not_installed"):
+            self._startup_stt_pending = False
+            self._stt_service.initialize_async()
 
         self._update_models_ready_status(state)
 

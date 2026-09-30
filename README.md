@@ -43,6 +43,6 @@ Set `ZAI_API_KEY` in your environment or create an ignored `.env` file at the pr
 uv run python src/app.py
 ```
 
-On first launch, use the download button to install the local models. Hold the animated central orb while speaking, then release it to hear the GLM response. The softly shaded orb changes color and shape as T.A.R.S. listens, processes speech, and speaks.
+On first launch, use the download button to install the local models. On later launches, T.A.R.S. loads both local models before the central orb becomes available. Once loading finishes, hold the orb while speaking, then release it to hear the GLM response. The softly shaded orb changes color and shape as T.A.R.S. listens, processes speech, and speaks.
 
 ![Example](assets/tars-architecture.gif)

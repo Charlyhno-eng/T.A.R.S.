@@ -353,6 +353,7 @@ ApplicationWindow {
                 window.assistantState
 
             animationsEnabled: window.active
+            interactionEnabled: assistant.modelsReady && !assistant.modelsDownloading
 
             onPressed: assistant.startListening()
             onReleased: assistant.stopListening()
@@ -375,7 +376,9 @@ ApplicationWindow {
                 return assistant.status
 
             if (assistant.modelsLoading)
-                return assistant.status
+                return english
+                    ? "LOADING LOCAL MODELS..."
+                    : "CHARGEMENT DES MODÈLES LOCAUX..."
 
             if (!assistant.modelsInstalled)
                 return english

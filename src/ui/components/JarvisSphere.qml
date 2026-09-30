@@ -6,6 +6,7 @@ Item {
 
     property string sphereState: "idle"
     property bool animationsEnabled: true
+    property bool interactionEnabled: true
     property color activeColor: Theme.stateColor(sphereState)
     property real phase: 0
     property bool holding: false
@@ -122,9 +123,10 @@ Item {
 
     MouseArea {
         anchors.centerIn: parent
+        enabled: root.interactionEnabled
         width: parent.width * 0.76
         height: width
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
         hoverEnabled: true
         onPressed: {
             root.holding = true
