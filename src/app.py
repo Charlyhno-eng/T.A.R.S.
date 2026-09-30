@@ -5,10 +5,12 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, QUrl
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QIcon
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWidgets import QApplication
 
 from core.assistant_controller import AssistantController
+from core.desktop_service import DesktopService
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -36,21 +38,25 @@ def main() -> int:
     """Launch the Qt application and return its exit code."""
     configure_logging()
 
-    app = QGuiApplication(sys.argv)
+    app = QApplication(sys.argv)
 
     app.setApplicationName("T.A.R.S.")
     app.setOrganizationName("T.A.R.S.")
+    icon_path = BASE_DIR.parent / "assets" / "tars-mascot.png"
+    app.setWindowIcon(QIcon(str(icon_path)))
 
     engine = QQmlApplicationEngine()
 
     engine.addImportPath(str(UI_DIR))
 
     assistant = AssistantController()
+    desktop = DesktopService(app, assistant, icon_path)
 
     engine.rootContext().setContextProperty(
         "assistant",
         assistant,
     )
+    engine.rootContext().setContextProperty("desktop", desktop)
 
     engine.load(
         QUrl.fromLocalFile(str(MAIN_QML))
@@ -61,13 +67,16 @@ def main() -> int:
             "[T.A.R.S.] Impossible de charger Main.qml."
         )
 
+        desktop.shutdown()
         assistant.shutdown()
 
         return -1
 
+    desktop.attach_window(engine.rootObjects()[0])
     QTimer.singleShot(0, assistant.start)
     exit_code = app.exec()
 
+    desktop.shutdown()
     assistant.shutdown()
 
     return exit_code

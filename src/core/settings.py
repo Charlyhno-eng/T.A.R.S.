@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import re
 import tomllib
 import os
@@ -54,26 +55,41 @@ class Settings:
         """Persist the selected application and voice language."""
         if language not in self.SUPPORTED_LANGUAGES:
             raise ValueError(f"Langue non prise en charge : {language}")
+        self._set_application_value("language", language)
+
+    def shortcut(self) -> str:
+        """Return the saved global shortcut; an empty value disables it."""
+        application = self._read().get("application", {})
+        value = application.get("shortcut", "") if isinstance(application, dict) else ""
+        return value if isinstance(value, str) else ""
+
+    def set_shortcut(self, shortcut: str) -> None:
+        self._set_application_value("shortcut", shortcut)
+
+    def _set_application_value(self, name: str, value: str) -> None:
+        """Update one preference while preserving the other TOML sections."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self._path.with_suffix(".tmp")
         content = self._path.read_text(encoding="utf-8") if self._path.exists() else ""
         section = re.compile(r"(?ms)^\[application\]\s*$.*?(?=^\[|\Z)")
         match = section.search(content)
+        setting = f"{name} = {json.dumps(value, ensure_ascii=False)}"
         if match:
             application = match.group(0)
-            if re.search(r"(?m)^language\s*=.*$", application):
+            pattern = rf"(?m)^{re.escape(name)}\s*=.*$"
+            if re.search(pattern, application):
                 application = re.sub(
-                    r'(?m)^language\s*=.*$',
-                    f'language = "{language}"',
+                    pattern,
+                    lambda _: setting,
                     application,
                     count=1,
                 )
             else:
-                application = application.rstrip() + f'\nlanguage = "{language}"\n'
+                application = application.rstrip() + f"\n{setting}\n\n"
             content = content[:match.start()] + application + content[match.end():]
         else:
             separator = "" if not content or content.endswith("\n\n") else "\n"
-            content += f'{separator}[application]\nlanguage = "{language}"\n'
+            content += f"{separator}[application]\n{setting}\n"
         temporary.write_text(content, encoding="utf-8")
         temporary.replace(self._path)
 

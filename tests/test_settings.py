@@ -58,3 +58,25 @@ class SettingsTests(unittest.TestCase):
             )
 
             self.assertEqual(settings.language(), "en")
+
+    def test_shortcut_persists_independently_of_language(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            settings = self.make_settings(directory)
+            settings._path.write_text('[other]\nvalue = 42\n', encoding="utf-8")
+            self.assertEqual(settings.shortcut(), "")
+            settings.set_shortcut("Ctrl+Alt+Space")
+            settings.set_language("fr")
+            restarted = self.make_settings(directory)
+            self.assertEqual(restarted.shortcut(), "Ctrl+Alt+Space")
+            self.assertEqual(restarted.language(), "fr")
+            restarted.set_shortcut("")
+            self.assertEqual(settings.shortcut(), "")
+            saved = tomllib.loads(settings._path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["other"]["value"], 42)
+
+    def test_malformed_shortcut_preference_is_disabled(self) -> None:
+        for content in ('[application]\nshortcut = 42\n', 'application = "bad"\n'):
+            with tempfile.TemporaryDirectory() as directory:
+                settings = self.make_settings(directory)
+                settings._path.write_text(content, encoding="utf-8")
+                self.assertEqual(settings.shortcut(), "")

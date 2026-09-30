@@ -15,6 +15,12 @@ ApplicationWindow {
 
     visible: true
 
+    onClosing: function(close) {
+        settingsDialog.close()
+        if (desktop.hideToTray())
+            close.accepted = false
+    }
+
     title: "T.A.R.S. — Assistant"
 
     color: Theme.backgroundTop
