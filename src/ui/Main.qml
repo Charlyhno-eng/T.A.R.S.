@@ -485,8 +485,8 @@ ApplicationWindow {
                 if (assistant.transcript)
                     return assistant.transcript
                 return english
-                    ? "HOLD THE ORB TO SPEAK"
-                    : "MAINTENEZ L'ORBE POUR PARLER"
+                    ? "HOLD T.A.R.S. TO SPEAK"
+                    : "MAINTENEZ T.A.R.S. POUR PARLER"
             }
 
             if (window.assistantState === "speaking" && assistant.response)
