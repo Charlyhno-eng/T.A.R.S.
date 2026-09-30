@@ -276,26 +276,10 @@ ApplicationWindow {
                     : "Télécharger Pocket TTS et Parakeet"))
     }
 
-    LanguageSelector {
-        id: languageSelector
-
-        anchors.top: parent.top
-        anchors.right: modelDownloadButton.left
-        anchors.topMargin: 23
-        anchors.rightMargin: 16
-
-        language: assistant.language
-        selectorEnabled: !assistant.modelsDownloading && assistant.state === "idle"
-
-        onLanguageSelected: function(language) {
-            assistant.setLanguage(language)
-        }
-    }
-
     Rectangle {
         id: settingsButton
         anchors.top: parent.top
-        anchors.right: languageSelector.left
+        anchors.right: modelDownloadButton.left
         anchors.topMargin: 20
         anchors.rightMargin: 16
         width: 42
@@ -322,67 +306,9 @@ ApplicationWindow {
         ToolTip.text: assistant.language === "en" ? "Settings" : "Paramètres"
     }
 
-    Dialog {
+    SettingsDialog {
         id: settingsDialog
         anchors.centerIn: parent
-        width: Math.min(window.width - 48, 420)
-        modal: true
-        title: assistant.language === "en" ? "Settings" : "Paramètres"
-        standardButtons: Dialog.NoButton
-        onOpened: keyField.text = ""
-
-        background: Rectangle {
-            color: Theme.backgroundTop
-            radius: 12
-            border.color: Theme.panelBorder
-        }
-
-        contentItem: Column {
-            spacing: 14
-            Text {
-                text: "GLM 5.3 Flash · Z.AI API key"
-                color: Theme.textPrimary
-                font.pixelSize: 15
-            }
-            Text {
-                text: assistant.llmKeyConfigured
-                    ? (assistant.language === "en" ? "Key saved on this device" : "Clé enregistrée sur cet appareil")
-                    : (assistant.language === "en" ? "No key saved in settings" : "Aucune clé enregistrée dans les paramètres")
-                color: Theme.textSecondary
-                font.pixelSize: 12
-            }
-            TextField {
-                id: keyField
-                width: parent.width
-                echoMode: TextInput.Password
-                placeholderText: assistant.language === "en" ? "Enter API key" : "Saisir la clé API"
-            }
-            Row {
-                spacing: 12
-                Button {
-                    text: assistant.language === "en" ? "Save" : "Enregistrer"
-                    enabled: keyField.text.trim().length > 0
-                    onClicked: {
-                        assistant.saveLlmApiKey(keyField.text)
-                        keyField.text = ""
-                        settingsDialog.close()
-                    }
-                }
-                Button {
-                    text: assistant.language === "en" ? "Remove key" : "Supprimer la clé"
-                    enabled: assistant.llmKeyConfigured
-                    onClicked: {
-                        assistant.saveLlmApiKey("")
-                        keyField.text = ""
-                        settingsDialog.close()
-                    }
-                }
-                Button {
-                    text: assistant.language === "en" ? "Close" : "Fermer"
-                    onClicked: settingsDialog.close()
-                }
-            }
-        }
     }
 
     Text {

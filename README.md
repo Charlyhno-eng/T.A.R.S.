@@ -9,7 +9,7 @@ It uses Parakeet TDT 0.6B v3 for speech-to-text (STT), GLM 5.3 Flash for respons
 
 STT and TTS run locally on the CPU. GLM requires an internet connection and a Z.AI API key.
 English is the default language, and Parakeet generally performs better in English than in French.
-French remains available from the interface.
+French remains available in Settings. The selected application and voice language is saved for later launches.
 
 T.A.R.S. is not a finished product, but an accessible base for building a personal assistant.
 The interface sends each transcription to GLM and speaks its response.
@@ -36,7 +36,7 @@ uv sync
 
 ### Configure GLM
 
-Open the gear in the upper right and save your Z.AI API key. The key is stored in the ignored `config/llm_api_key` file with user-only permissions. You can remove it from the same dialog. Alternatively, set `ZAI_API_KEY` in your environment or create an ignored `.env` file at the project root containing `ZAI_API_KEY=your-key`. A key saved in Settings takes precedence. The configured model is `glm-5.3-flash`.
+Open the gear in the upper right to choose the application and voice language and save your Z.AI API key. The key is stored in the ignored `config/llm_api_key` file with user-only permissions. You can remove it from the same dialog. Alternatively, set `ZAI_API_KEY` in your environment or create an ignored `.env` file at the project root containing `ZAI_API_KEY=your-key`. A key saved in Settings takes precedence. The configured model is `glm-5.3-flash`.
 
 To use another LLM, implement the `LLMProvider.complete(text, language, history)` interface in `src/core/llm_service.py` and pass the provider to `LLMService`. For an OpenAI-compatible chat endpoint, you can instead supply a different `LLMConfig` to `GLMProvider`.
 
