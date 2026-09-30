@@ -20,7 +20,7 @@ The app displays its name as “T.A.R.S.”, while the assistant uses “TARS”
 
 ## See T.A.R.S. in action
 
-![Interface](assets/tars-interface.png)
+![Interface](assets/tars-interface2.png)
 
 ---
 
@@ -47,13 +47,3 @@ uv run python src/app.py
 ```
 
 On first launch, use the download button to install the local models. On later launches, T.A.R.S. loads both local models before the central robot head becomes available. Once loading finishes, hold the head while speaking, then release it to hear the GLM response. The central control shows an animated 3D robot head inspired by the app mascot. Its shell and expression flex as T.A.R.S. listens, processes speech, and speaks, while the surrounding glow changes color with the state.
-
-![Example](assets/tars-architecture.gif)
-
-### Tests
-
-Run the unit tests with:
-
-```bash
-PYTHONPATH=src uv run python -m unittest discover -s tests
-```
