@@ -12,8 +12,8 @@ T.A.R.S. is a lightweight personal voice assistant and a foundation for building
 
 ## Project structure and workflow
 
-- `src/core` contains the controller, audio capture, settings, asynchronous STT/LLM/TTS services, and desktop integration (`python-xlib` shortcuts and Qt system tray). `src/providers/{stt,tts,llm}` contains provider implementations and adapter selection. `src/ui` contains QML screens, components, and theme.
-- Python dependencies are managed with `uv` in `pyproject.toml`. Run with `uv run python src/app.py`; run tests with `uv run pytest`.
+- `src/core` contains the controller, audio capture, settings, asynchronous STT/LLM/TTS services, and desktop integration (X11 via `python-xlib`, Windows/macOS native shortcuts, and the Qt system tray). `src/providers/{stt,tts,llm}` contains provider implementations and adapter selection. `src/ui` contains QML screens, components, and theme.
+- Python dependencies are managed with `uv` in `pyproject.toml`. Run with `uv run python src/app.py`; run tests with `uv run --project . --directory src python -m unittest discover -s ../tests`.
 - Preferences and the private Z.AI key live in `~/.tars/config`; legacy checkout settings migrate once. Voice resources remain in `~/.tars/{stt,tts}`. `TARS_DATA_DIR` overrides this writable root; `core/paths.py` resolves bundled assets and OS temporary files.
 
 ## Working rules

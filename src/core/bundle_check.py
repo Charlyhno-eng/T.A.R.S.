@@ -54,6 +54,8 @@ def check_bundle(load_models: bool = False, register_shortcut: bool = False) -> 
                 shortcut.shutdown()
                 conflicting.shutdown()
         from pocket_tts import TTSModel
+        if not callable(TTSModel.load_model):
+            raise RuntimeError("Pocket TTS does not expose its model loader.")
         ParakeetProvider._import_nemo()
         for language in ("en", "fr"):
             provider = PocketTTSProvider(language=language)
