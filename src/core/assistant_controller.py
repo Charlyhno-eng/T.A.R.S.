@@ -187,6 +187,10 @@ class AssistantController(QObject):
     def llmKeyConfigured(self) -> bool:
         return bool(self._settings.llm_api_key())
 
+    @Property(str, notify=llmKeyConfiguredChanged)
+    def llmApiKey(self) -> str:
+        return self._settings.llm_api_key()
+
     @Slot(str)
     def saveLlmApiKey(self, key: str) -> None:
         self._settings.set_llm_api_key(key)

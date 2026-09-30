@@ -9,7 +9,10 @@ Dialog {
     modal: true
     padding: 0
     standardButtons: Dialog.NoButton
-    onOpened: keyField.text = ""
+    onOpened: {
+        keyField.text = assistant.llmApiKey
+        revealKey = false
+    }
 
     background: Rectangle {
         radius: 18
@@ -168,21 +171,74 @@ Dialog {
                 font.pixelSize: 12
             }
 
-            TextField {
-                id: keyField
+            Item {
+                id: keyEntry
                 width: parent.width - 48
                 height: 42
-                echoMode: TextInput.Password
-                placeholderText: assistant.language === "en" ? "Enter API key" : "Saisir la clé API"
-                color: Theme.textPrimary
-                placeholderTextColor: Theme.textSecondary
-                font.family: Theme.fontFamily
-                selectByMouse: true
-                background: Rectangle {
-                    radius: 9
-                    color: Theme.backgroundTop
-                    border.width: 1
-                    border.color: keyField.activeFocus ? Theme.colorIdle : Theme.panelBorder
+                property bool revealKey: false
+
+                TextField {
+                    id: keyField
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: parent.width - 36
+                    leftPadding: 12
+                    rightPadding: 8
+                    echoMode: parent.revealKey ? TextInput.Normal : TextInput.Password
+                    placeholderText: assistant.language === "en" ? "Enter API key" : "Saisir la clé API"
+                    color: Theme.textPrimary
+                    placeholderTextColor: Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    selectByMouse: true
+                    background: Rectangle {
+                        radius: 9
+                        color: Theme.backgroundTop
+                        border.width: 1
+                        border.color: keyField.activeFocus ? Theme.colorIdle : Theme.panelBorder
+                    }
+                }
+
+                Button {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 32
+                    height: 36
+                    padding: 0
+                    Accessible.name: parent.revealKey
+                        ? (assistant.language === "en" ? "Hide API key" : "Masquer la clé API")
+                        : (assistant.language === "en" ? "Show API key" : "Afficher la clé API")
+                    onClicked: parent.revealKey = !parent.revealKey
+                    contentItem: Item {
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 18
+                            height: 12
+                            radius: 6
+                            color: "transparent"
+                            border.width: 1.5
+                            border.color: Theme.textSecondary
+                        }
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 5
+                            height: 5
+                            radius: 2.5
+                            color: Theme.textSecondary
+                        }
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 22
+                            height: 1.5
+                            rotation: -35
+                            color: Theme.textSecondary
+                            visible: !keyEntry.revealKey
+                        }
+                    }
+                    background: Rectangle {
+                        color: parent.hovered ? Theme.panelBorder : "transparent"
+                        radius: 7
+                    }
                 }
             }
 
