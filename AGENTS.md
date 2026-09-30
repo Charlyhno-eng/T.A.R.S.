@@ -1,21 +1,20 @@
 # T.A.R.S.
 
-Assistant vocal personnel, base légère pour construire un assistant de type Jarvis. Application Python 3.12 avec PySide6 et interface QML.
+T.A.R.S. is a lightweight personal voice assistant and a foundation for building a Jarvis-style assistant. It is built with Python 3.12, PySide6, and a QML interface.
 
-## État de l’application
+## Current capabilities
 
-- Conversation vocale : capture au maintien du contrôle central, transcription locale avec Parakeet TDT 0.6B v3, réponse via GLM 5.3 Flash (API Z.AI), synthèse locale avec Pocket TTS.
-- Français et anglais sont disponibles. La langue est mémorisée ; les modèles locaux se téléchargent depuis l’interface et fonctionnent ensuite hors ligne. GLM requiert une connexion et une clé API.
-- L’interface affiche l’état d’écoute, de traitement et de parole, avec tête robot animée. Les réglages permettent de choisir la langue et gérer la clé API.
+- Hold the central robot control to record speech; local Parakeet TDT 0.6B v3 transcribes it, GLM 5.3 Flash (Z.AI API) generates a concise reply, and local Pocket TTS speaks it.
+- English (default) and French are supported. The selected language persists. STT/TTS resources can be installed from the interface and then run offline; GLM needs internet access and a Z.AI API key.
+- The interface shows listening, processing, and speaking states, an animated robot head, and settings for language and API key management.
 
-## Technologies et organisation
+## Project structure and workflow
 
-- Dépendances Python gérées par `uv` dans `pyproject.toml` ; UI en QML sous `src/ui`.
-- `src/core` contient contrôleur, services audio, réglages et orchestration ; `src/providers/{stt,tts,llm}` contient les fournisseurs et leurs adaptateurs.
-- Tests dans `tests/`. Lancement : `uv run python src/app.py` ; vérifications : `uv run pytest`.
-- Préférences dans `config/config.toml`, clé Z.AI dans `config/llm_api_key` (fichier local ignoré par Git). Ressources vocales dans `~/.tars`.
+- `src/core` contains the controller, audio capture, settings, and asynchronous STT/LLM/TTS services. `src/providers/{stt,tts,llm}` contains provider implementations and adapter selection. `src/ui` contains QML screens, components, and theme.
+- Python dependencies are managed with `uv` in `pyproject.toml`. Run with `uv run python src/app.py`; run tests with `uv run pytest`.
+- Preferences are stored in `config/config.toml`; the local, Git-ignored Z.AI key is stored in `config/llm_api_key`. Downloaded voice resources are stored under `~/.tars`.
 
-## Règles de travail
+## Working rules
 
-- Suivre les conventions existantes et limiter les changements au ticket.
-- Garder ce fichier concis ; le mettre à jour lorsque l’architecture ou les capacités durables changent.
+- Follow existing conventions and keep changes within the requested scope.
+- Keep this file concise; update it when durable project architecture or capabilities change.
