@@ -18,9 +18,7 @@ QtObject {
 
     readonly property string fontFamily: "Segoe UI"
 
-    readonly property int animFast: 180
     readonly property int animMedium: 500
-    readonly property int animSlow: 1400
 
     function stateColor(state) {
         switch (state) {
