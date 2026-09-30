@@ -15,10 +15,19 @@ Dialog {
         keyField.text = assistant.llmApiKey
         keyEntry.revealKey = false
     }
-    onClosed: shortcutDialog.close()
+    onClosed: {
+        shortcutDialog.close()
+        exportDialog.close()
+    }
 
     ShortcutDialog {
         id: shortcutDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+    }
+
+    ExportDialog {
+        id: exportDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
     }
@@ -236,6 +245,12 @@ Dialog {
                 }
 
                 Item { width: 1; height: 8 }
+
+                SettingsButton {
+                    text: assistant.language === "en" ? "Export application…" : "Exporter l'application…"
+                    enabled: assistant.state === "idle" && !assistant.modelsDownloading
+                    onClicked: exportDialog.open()
+                }
 
                 Text {
                     text: "GLM 5.3 FLASH · Z.AI"

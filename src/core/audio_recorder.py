@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject
 from PySide6.QtMultimedia import QAudioFormat, QAudioSource, QMediaDevices
+from core.paths import temporary_directory
 
 
 logger = logging.getLogger("TARS.Recorder")
@@ -71,7 +72,7 @@ class AudioRecorder(QObject):
         if len(payload) < self.SAMPLE_RATE // 5 * 2:
             raise RuntimeError("Enregistrement trop court. Maintenez le bouton pour parler.")
 
-        directory = Path("/tmp") / "tars_stt"
+        directory = temporary_directory("tars_stt")
         directory.mkdir(parents=True, exist_ok=True)
         output_path = directory / f"speech_{uuid.uuid4().hex}.wav"
         with wave.open(str(output_path), "wb") as output:

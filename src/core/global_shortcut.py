@@ -65,6 +65,12 @@ class GlobalShortcut(QObject):
         self._binding: tuple[int, int] | None = None
         self._lock_masks = [0]
         self._pressed = False
+        self._native = None
+        if sys.platform in ("win32", "darwin"):
+            from core.native_shortcut import NativeShortcut
+            self._native = NativeShortcut(self)
+            self._native.pressed.connect(self.pressed.emit)
+            self._native.released.connect(self.released.emit)
         self._poll_timer = QTimer(self)
         self._poll_timer.setInterval(20)
         self._poll_timer.timeout.connect(self._poll)
@@ -77,7 +83,8 @@ class GlobalShortcut(QObject):
 
     @staticmethod
     def supported() -> bool:
-        return sys.platform.startswith("linux") and QGuiApplication.platformName() == "xcb"
+        return sys.platform in ("win32", "darwin") or (
+            sys.platform.startswith("linux") and QGuiApplication.platformName() == "xcb")
 
     def _connect(self) -> None:
         if self._display is not None:
@@ -105,6 +112,9 @@ class GlobalShortcut(QObject):
 
     def set_shortcut(self, text: str) -> None:
         """Replace a grab, restoring the previous one if the new key is busy."""
+        if self._native is not None:
+            self._native.set_shortcut(shortcut_combination(text) if text else None)
+            return
         from Xlib import X
 
         new_binding = None
@@ -201,6 +211,8 @@ class GlobalShortcut(QObject):
             self.released.emit()
 
     def shutdown(self) -> None:
+        if self._native is not None:
+            self._native.shutdown()
         self._poll_timer.stop()
         self._release()
         if self._display:

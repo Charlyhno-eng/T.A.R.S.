@@ -5,6 +5,9 @@ import json
 import re
 import tomllib
 import os
+import shutil
+
+from core.paths import data_directory, resource_directory
 
 
 class Settings:
@@ -13,9 +16,24 @@ class Settings:
     DEFAULT_LANGUAGE = "en"
     SUPPORTED_LANGUAGES = {"fr", "en"}
 
-    def __init__(self) -> None:
-        self._path = Path(__file__).resolve().parents[2] / "config" / "config.toml"
+    def __init__(self, directory: Path | None = None) -> None:
+        self._path = (directory or data_directory() / "config") / "config.toml"
         self._key_path = self._path.parent / "llm_api_key"
+        if directory is None:
+            self._migrate_legacy_settings()
+
+    def _migrate_legacy_settings(self) -> None:
+        """Move checkout preferences once; never package personal settings."""
+        marker = self._path.parent / ".migrated"
+        if marker.exists():
+            return
+        legacy = resource_directory() / "config"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        if not self._path.exists() and (legacy / "config.toml").is_file():
+            shutil.copyfile(legacy / "config.toml", self._path)
+        if not self._key_path.exists() and (legacy / "llm_api_key").is_file():
+            self.set_llm_api_key((legacy / "llm_api_key").read_text(encoding="utf-8"))
+        marker.touch()
 
     def llm_api_key(self) -> str:
         """Read the user-provided API key, if one was saved."""

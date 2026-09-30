@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Any, Callable
+from core.paths import data_directory as user_data_directory
 
 
 logger = logging.getLogger("TARS.PocketTTS")
@@ -30,7 +31,7 @@ class PocketTTSProvider:
     def __init__(
         self, language: str = "en", *, data_directory: Path | None = None,
     ) -> None:
-        data_directory = data_directory or Path.home() / ".tars" / "tts"
+        data_directory = data_directory or user_data_directory() / "tts"
         self._data_directory = data_directory
         self._installation_marker = data_directory / "pocket_tts_installed.json"
         self._language = language

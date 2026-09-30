@@ -4,6 +4,7 @@ import logging
 import threading
 import uuid
 from pathlib import Path
+from core.paths import temporary_directory
 
 from PySide6.QtCore import QObject, Signal, Slot
 
@@ -43,9 +44,7 @@ class TTSService(QObject):
 
         self._lock = threading.Lock()
 
-        self._audio_directory = (
-            Path("/tmp") / "tars_tts"
-        )
+        self._audio_directory = temporary_directory("tars_tts")
 
         self._audio_directory.mkdir(
             parents=True,

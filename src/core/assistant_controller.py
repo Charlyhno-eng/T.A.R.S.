@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QObject, Property, Signal, Slot
+from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl
 
 from core.audio_recorder import AudioRecorder
 from core.llm_service import LLMService
@@ -425,7 +425,7 @@ class AssistantController(QObject):
     def _on_speech_finished(self, audio_path: str) -> None:
         self._set_status("Réponse de T.A.R.S....")
         self._set_state("speaking")
-        self.audioPathChanged.emit(audio_path)
+        self.audioPathChanged.emit(QUrl.fromLocalFile(audio_path).toString())
 
     def _on_tts_error(self, error: str) -> None:
         logger.error("Erreur Pocket TTS : %s", error)

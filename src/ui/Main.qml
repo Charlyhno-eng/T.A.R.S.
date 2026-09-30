@@ -87,9 +87,7 @@ ApplicationWindow {
 
             audioPlayer.stop()
 
-            audioPlayer.source =
-                "file://" +
-                audioPath
+            audioPlayer.source = audioPath
 
             audioPlayer.play()
         }

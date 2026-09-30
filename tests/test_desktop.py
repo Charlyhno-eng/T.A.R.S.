@@ -137,7 +137,7 @@ class DesktopTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.settings = Settings()
+        self.settings = Settings(directory=Path(self.directory.name))
         self.settings._path = Path(self.directory.name) / "config.toml"
         self.assistant = FakeAssistant()
         self.hotkey = FakeHotkey()
@@ -231,6 +231,9 @@ class DesktopTests(unittest.TestCase):
         engine.addImportPath(str(ui_directory))
         engine.rootContext().setContextProperty("assistant", assistant)
         engine.rootContext().setContextProperty("desktop", self.desktop)
+        from core.export_service import ExportService
+        exporter = ExportService()
+        engine.rootContext().setContextProperty("exporter", exporter)
         warnings = []
         engine.warnings.connect(lambda errors: warnings.extend(str(error) for error in errors))
         engine.loadData(f'''
@@ -261,6 +264,14 @@ class DesktopTests(unittest.TestCase):
             self.assertFalse(shortcut.property("visible"))
             self.assertFalse(self.desktop._capturing)
             self.assertEqual(self.settings.shortcut(), "Ctrl+Alt+Space")
+            export_dialog = window.findChild(QObject, "exportDialog")
+            QMetaObject.invokeMethod(export_dialog, "open")
+            QTest.qWait(150)
+            target = window.findChild(QObject, "exportTarget")
+            self.assertEqual(target.property("model"), ["Linux", "Windows", "macOS"])
+            self.assertEqual(target.property("currentIndex"),
+                             ["linux", "windows", "macos"].index(exporter.platform))
+            QMetaObject.invokeMethod(export_dialog, "close")
             QMetaObject.invokeMethod(settings, "close")
             QTest.qWait(150)
             self.assertEqual(warnings, [])

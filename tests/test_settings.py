@@ -13,7 +13,7 @@ class SettingsTests(unittest.TestCase):
 
     def make_settings(self, directory: str) -> Settings:
         """Create settings backed by an isolated temporary file."""
-        settings = Settings()
+        settings = Settings(directory=Path(directory))
         settings._path = Path(directory) / "config.toml"
         return settings
 

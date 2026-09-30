@@ -18,6 +18,7 @@ class DesktopService(QObject):
     shortcutErrorChanged = Signal()
 
     FRENCH_ERRORS = {
+        "Could not register a shortcut with the desktop.": "Impossible d'enregistrer le raccourci sur ce bureau.",
         "Global shortcuts require a Linux X11 session.": "Les raccourcis globaux nécessitent une session Linux X11.",
         "Could not connect to the X11 desktop.": "Impossible de se connecter au bureau X11.",
         "Choose a single key combination.": "Choisissez une seule combinaison de touches.",

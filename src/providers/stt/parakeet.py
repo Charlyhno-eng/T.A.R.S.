@@ -6,6 +6,7 @@ import os
 import wave
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
+from core.paths import data_directory as user_data_directory
 
 
 if TYPE_CHECKING:
@@ -20,10 +21,11 @@ class ParakeetProvider:
 
     REPOSITORY = "nvidia/parakeet-tdt-0.6b-v3"
     MODEL_FILE = "parakeet-tdt-0.6b-v3.nemo"
-    CPU_THREADS = min(4, len(os.sched_getaffinity(0)))
+    CPU_THREADS = min(4, len(os.sched_getaffinity(0))
+                      if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1))
 
     def __init__(self, data_directory: Path | None = None) -> None:
-        data_directory = data_directory or Path.home() / ".tars" / "stt"
+        data_directory = data_directory or user_data_directory() / "stt"
         self._data_directory = data_directory
         self._installation_marker = data_directory / "parakeet_installed.json"
         self._model_path = data_directory / self.MODEL_FILE

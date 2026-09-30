@@ -14,7 +14,7 @@ from core.settings import Settings
 class LLMServiceTests(unittest.TestCase):
     def test_saved_key_is_used_and_can_be_removed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            settings = Settings()
+            settings = Settings(directory=Path(directory))
             settings._key_path = Path(directory) / "llm_api_key"
             with patch("providers.llm.glm_5_3_flash.Settings", return_value=settings), patch("providers.llm.glm_5_3_flash.urlopen", return_value=io.BytesIO(
                 b'{"choices":[{"message":{"content":"OK"}}]}'
@@ -37,7 +37,7 @@ class LLMServiceTests(unittest.TestCase):
         ) as settings_mock, patch(
             "providers.llm.glm_5_3_flash.urlopen", return_value=payload
         ) as request_mock:
-            settings = Settings()
+            settings = Settings(directory=Path(directory))
             settings._key_path = Path(directory) / "llm_api_key"
             settings.set_llm_api_key("test-key")
             settings_mock.return_value = settings
@@ -62,7 +62,7 @@ class LLMServiceTests(unittest.TestCase):
         ) as settings_mock, patch(
             "providers.llm.glm_5_3_flash.urlopen", return_value=payload
         ):
-            settings = Settings()
+            settings = Settings(directory=Path(directory))
             settings._key_path = Path(directory) / "llm_api_key"
             settings.set_llm_api_key("test-key")
             settings_mock.return_value = settings
