@@ -44,6 +44,8 @@ logs/
 # Environment / secrets
 .env
 .env.*
+config/llm_api_key
+config/llm_api_key.tmp
 !.env.example
 
 # OS

@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 import os
 import threading
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from PySide6.QtCore import QObject, Signal
+from core.settings import Settings
 
 
 API_URL = "https://api.z.ai/api/paas/v4/chat/completions"
@@ -15,7 +18,21 @@ MODEL = "glm-5.3-flash"
 MAX_RESPONSE_TOKENS = 160
 
 
+@dataclass(frozen=True)
+class LLMConfig:
+    api_url: str = API_URL
+    model: str = MODEL
+    max_response_tokens: int = MAX_RESPONSE_TOKENS
+
+
+class LLMProvider(Protocol):
+    def complete(self, text: str, language: str, history: list[dict[str, str]]) -> str: ...
+
+
 def _api_key() -> str:
+    saved = Settings().llm_api_key()
+    if saved:
+        return saved
     key = os.environ.get("ZAI_API_KEY", "").strip()
     if key:
         return key
@@ -29,11 +46,13 @@ def _api_key() -> str:
     return ""
 
 
-def complete(text: str, language: str, history: list[dict[str, str]]) -> str:
+def complete(text: str, language: str, history: list[dict[str, str]],
+             config: LLMConfig | None = None) -> str:
     """Request a GLM answer for the transcript and recent conversation."""
+    config = config or LLMConfig()
     key = _api_key()
     if not key:
-        raise RuntimeError("ZAI_API_KEY is missing. Set it in the environment or .env file.")
+        raise RuntimeError("Z.AI API key is missing. Add it in Settings or set ZAI_API_KEY.")
     messages = [
         {
             "role": "system",
@@ -48,11 +67,11 @@ def complete(text: str, language: str, history: list[dict[str, str]]) -> str:
         {"role": "user", "content": text},
     ]
     request = Request(
-        API_URL,
+        config.api_url,
         data=json.dumps({
-            "model": MODEL,
+            "model": config.model,
             "messages": messages,
-            "max_tokens": MAX_RESPONSE_TOKENS,
+            "max_tokens": config.max_response_tokens,
             "stream": False,
         }).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
@@ -74,13 +93,25 @@ def complete(text: str, language: str, history: list[dict[str, str]]) -> str:
     return answer
 
 
+class GLMProvider:
+    """Default HTTP provider; replace this to use another LLM backend."""
+
+    def __init__(self, config: LLMConfig | None = None) -> None:
+        self.config = config or LLMConfig()
+
+    def complete(self, text: str, language: str, history: list[dict[str, str]]) -> str:
+        return complete(text, language, history, self.config)
+
+
 class LLMService(QObject):
     """Generate GLM answers asynchronously for the Qt controller."""
     responseReady = Signal(str)
     errorOccurred = Signal(str)
 
-    def __init__(self, parent: QObject | None = None) -> None:
+    def __init__(self, parent: QObject | None = None,
+                 provider: LLMProvider | None = None) -> None:
         super().__init__(parent)
+        self._provider = provider or GLMProvider()
         self._history: list[dict[str, str]] = []
 
     def reset(self) -> None:
@@ -99,7 +130,7 @@ class LLMService(QObject):
 
     def _respond_worker(self, text: str, language: str, history: list[dict[str, str]]) -> None:
         try:
-            answer = complete(text, language, history)
+            answer = self._provider.complete(text, language, history)
         except (RuntimeError, TimeoutError, ValueError) as exc:
             self.errorOccurred.emit(str(exc))
             return

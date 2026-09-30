@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import re
 import tomllib
+import os
 
 
 class Settings:
@@ -13,6 +14,30 @@ class Settings:
 
     def __init__(self) -> None:
         self._path = Path(__file__).resolve().parents[2] / "config" / "config.toml"
+        self._key_path = self._path.parent / "llm_api_key"
+
+    def llm_api_key(self) -> str:
+        """Read the user-provided API key, if one was saved."""
+        try:
+            return self._key_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+
+    def set_llm_api_key(self, key: str) -> None:
+        """Save or remove the API key in a user-only file."""
+        key = key.strip()
+        if not key:
+            self._key_path.unlink(missing_ok=True)
+            return
+        self._key_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self._key_path.with_suffix(".tmp")
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as key_file:
+                key_file.write(key)
+            temporary.replace(self._key_path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def language(self) -> str:
         """Return the selected language."""

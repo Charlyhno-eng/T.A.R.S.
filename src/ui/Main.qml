@@ -292,9 +292,102 @@ ApplicationWindow {
         }
     }
 
-    Text {
+    Rectangle {
+        id: settingsButton
         anchors.top: parent.top
         anchors.right: languageSelector.left
+        anchors.topMargin: 20
+        anchors.rightMargin: 16
+        width: 42
+        height: 42
+        radius: 21
+        color: settingsMouse.containsMouse ? Theme.panelBorder : "transparent"
+        border.width: 1
+        border.color: Theme.panelBorder
+
+        Text {
+            anchors.centerIn: parent
+            text: "⚙"
+            color: Theme.textPrimary
+            font.pixelSize: 25
+        }
+        MouseArea {
+            id: settingsMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: settingsDialog.open()
+        }
+        ToolTip.visible: settingsMouse.containsMouse
+        ToolTip.text: assistant.language === "en" ? "Settings" : "Paramètres"
+    }
+
+    Dialog {
+        id: settingsDialog
+        anchors.centerIn: parent
+        width: Math.min(window.width - 48, 420)
+        modal: true
+        title: assistant.language === "en" ? "Settings" : "Paramètres"
+        standardButtons: Dialog.NoButton
+        onOpened: keyField.text = ""
+
+        background: Rectangle {
+            color: Theme.backgroundTop
+            radius: 12
+            border.color: Theme.panelBorder
+        }
+
+        contentItem: Column {
+            spacing: 14
+            Text {
+                text: "GLM 5.3 Flash · Z.AI API key"
+                color: Theme.textPrimary
+                font.pixelSize: 15
+            }
+            Text {
+                text: assistant.llmKeyConfigured
+                    ? (assistant.language === "en" ? "Key saved on this device" : "Clé enregistrée sur cet appareil")
+                    : (assistant.language === "en" ? "No key saved in settings" : "Aucune clé enregistrée dans les paramètres")
+                color: Theme.textSecondary
+                font.pixelSize: 12
+            }
+            TextField {
+                id: keyField
+                width: parent.width
+                echoMode: TextInput.Password
+                placeholderText: assistant.language === "en" ? "Enter API key" : "Saisir la clé API"
+            }
+            Row {
+                spacing: 12
+                Button {
+                    text: assistant.language === "en" ? "Save" : "Enregistrer"
+                    enabled: keyField.text.trim().length > 0
+                    onClicked: {
+                        assistant.saveLlmApiKey(keyField.text)
+                        keyField.text = ""
+                        settingsDialog.close()
+                    }
+                }
+                Button {
+                    text: assistant.language === "en" ? "Remove key" : "Supprimer la clé"
+                    enabled: assistant.llmKeyConfigured
+                    onClicked: {
+                        assistant.saveLlmApiKey("")
+                        keyField.text = ""
+                        settingsDialog.close()
+                    }
+                }
+                Button {
+                    text: assistant.language === "en" ? "Close" : "Fermer"
+                    onClicked: settingsDialog.close()
+                }
+            }
+        }
+    }
+
+    Text {
+        anchors.top: parent.top
+        anchors.right: settingsButton.left
 
         anchors.topMargin: 33
         anchors.rightMargin: 16

@@ -3,13 +3,34 @@ from __future__ import annotations
 import io
 import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from core.llm_service import complete
+from core.llm_service import LLMConfig, complete
+from core.settings import Settings
 
 
 class LLMServiceTests(unittest.TestCase):
+    def test_saved_key_takes_precedence_and_can_be_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Settings()
+            settings._key_path = Path(directory) / "llm_api_key"
+            with patch("core.llm_service.Settings", return_value=settings), patch.dict(
+                os.environ, {"ZAI_API_KEY": "environment-key"}
+            ), patch("core.llm_service.urlopen", return_value=io.BytesIO(
+                b'{"choices":[{"message":{"content":"OK"}}]}'
+            )) as request_mock:
+                settings.set_llm_api_key(" saved-key ")
+                complete("Hello", "en", [], LLMConfig(model="another-model"))
+                self.assertEqual(request_mock.call_args.args[0].get_header("Authorization"),
+                                 "Bearer saved-key")
+                self.assertEqual(json.loads(request_mock.call_args.args[0].data)["model"],
+                                 "another-model")
+                settings.set_llm_api_key("")
+                self.assertEqual(settings.llm_api_key(), "")
+
     def test_sends_transcription_and_reads_reply(self) -> None:
         payload = io.BytesIO(b'{"choices":[{"message":{"content":" Hello there. "}}]}')
         with patch.dict(os.environ, {"ZAI_API_KEY": "test-key"}), patch(

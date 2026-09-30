@@ -27,6 +27,7 @@ class AssistantController(QObject):
     responseChanged = Signal()
     audioPathChanged = Signal(str)
     languageChanged = Signal()
+    llmKeyConfiguredChanged = Signal()
 
     ENGLISH_STATUS = {
         "Initialisation...": "Initializing...",
@@ -181,6 +182,16 @@ class AssistantController(QObject):
     def language(self) -> str:
         """Return the selected language."""
         return self._language
+
+    @Property(bool, notify=llmKeyConfiguredChanged)
+    def llmKeyConfigured(self) -> bool:
+        return bool(self._settings.llm_api_key())
+
+    @Slot(str)
+    def saveLlmApiKey(self, key: str) -> None:
+        self._settings.set_llm_api_key(key)
+        self.llmKeyConfiguredChanged.emit()
+        self._llm_service.reset()
 
     @Slot(str)
     def setLanguage(self, language: str) -> None:
