@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core.llm_service import LLMConfig, complete
+from providers.llm.glm import LLMConfig, complete
 from core.settings import Settings
 
 
@@ -16,7 +16,7 @@ class LLMServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             settings = Settings()
             settings._key_path = Path(directory) / "llm_api_key"
-            with patch("core.llm_service.Settings", return_value=settings), patch("core.llm_service.urlopen", return_value=io.BytesIO(
+            with patch("providers.llm.glm.Settings", return_value=settings), patch("providers.llm.glm.urlopen", return_value=io.BytesIO(
                 b'{"choices":[{"message":{"content":"OK"}}]}'
             )) as request_mock:
                 settings.set_llm_api_key(" saved-key ")
@@ -33,9 +33,9 @@ class LLMServiceTests(unittest.TestCase):
     def test_sends_transcription_and_reads_reply(self) -> None:
         payload = io.BytesIO(b'{"choices":[{"message":{"content":" Hello there. "}}]}')
         with tempfile.TemporaryDirectory() as directory, patch(
-            "core.llm_service.Settings"
+            "providers.llm.glm.Settings"
         ) as settings_mock, patch(
-            "core.llm_service.urlopen", return_value=payload
+            "providers.llm.glm.urlopen", return_value=payload
         ) as request_mock:
             settings = Settings()
             settings._key_path = Path(directory) / "llm_api_key"
@@ -58,9 +58,9 @@ class LLMServiceTests(unittest.TestCase):
     def test_empty_reply_fails_without_speech(self) -> None:
         payload = io.BytesIO(b'{"choices":[{"message":{"content":" "}}]}')
         with tempfile.TemporaryDirectory() as directory, patch(
-            "core.llm_service.Settings"
+            "providers.llm.glm.Settings"
         ) as settings_mock, patch(
-            "core.llm_service.urlopen", return_value=payload
+            "providers.llm.glm.urlopen", return_value=payload
         ):
             settings = Settings()
             settings._key_path = Path(directory) / "llm_api_key"

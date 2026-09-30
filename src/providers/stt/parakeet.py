@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import wave
@@ -21,17 +22,63 @@ class ParakeetProvider:
     MODEL_FILE = "parakeet-tdt-0.6b-v3.nemo"
     CPU_THREADS = min(4, len(os.sched_getaffinity(0)))
 
-    def __init__(self, data_directory: Path) -> None:
+    def __init__(self, data_directory: Path | None = None) -> None:
+        data_directory = data_directory or Path.home() / ".tars" / "stt"
         self._data_directory = data_directory
+        self._installation_marker = data_directory / "parakeet_installed.json"
         self._model_path = data_directory / self.MODEL_FILE
         self._model: Any | None = None
+
+    @property
+    def installed(self) -> bool:
+        """Return whether required local resources are installed."""
+        return (
+            self._installation_marker.exists()
+            and self.model_available
+        )
+
+    def initialize(
+        self,
+        on_status: Callable[[str], None] | None = None,
+    ) -> None:
+        """Load the installed provider."""
+        if not self.installed:
+            raise RuntimeError(
+                "Parakeet n'est pas installé. Cliquez sur le bouton "
+                "de téléchargement."
+            )
+        self.load(on_status=on_status)
+
+    def download(
+        self,
+        on_status: Callable[[str], None] | None = None,
+    ) -> None:
+        """Download and prepare the provider resources."""
+        self.shutdown()
+        self._download_resources(on_status=on_status)
+        self.load(on_status=on_status)
+        self._write_installation_marker()
+
+    def _write_installation_marker(self) -> None:
+        temporary_file = self._installation_marker.with_suffix(".tmp")
+        temporary_file.write_text(
+            json.dumps(
+                {
+                    "provider": "parakeet-tdt-0.6b-v3",
+                    "offline": True,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        temporary_file.replace(self._installation_marker)
 
     @property
     def model_available(self) -> bool:
         """Return whether the local model files are present."""
         return self._model_path.is_file()
 
-    def download(
+    def _download_resources(
         self,
         on_status: Callable[[str], None] | None = None,
     ) -> None:
