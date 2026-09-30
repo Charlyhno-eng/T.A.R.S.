@@ -62,39 +62,43 @@ Item {
             var base = Math.min(width, height) * (root.holding ? 0.36 : 0.34)
             var color = root.activeColor
 
-            // Soft outer layers make the moving contour readable against the dark canvas.
-            for (var layer = 3; layer >= 1; --layer) {
-                shape(ctx, base + layer * 13, energy, layer * 0.4)
-                ctx.fillStyle = Qt.rgba(color.r, color.g, color.b, 0.025 + (4 - layer) * 0.012)
-                ctx.fill()
-            }
-
             shape(ctx, base, energy, 0)
-            var fill = ctx.createRadialGradient(cx - base * 0.35, cy - base * 0.5,
-                                                base * 0.08, cx, cy, base * 1.3)
-            fill.addColorStop(0, Qt.rgba(0.9, 1, 1, 0.95))
-            fill.addColorStop(0.25, Qt.rgba(color.r, color.g, color.b, 0.95))
-            fill.addColorStop(0.72, Qt.rgba(color.r * 0.45, color.g * 0.55, color.b * 0.65, 0.95))
-            fill.addColorStop(1, Qt.rgba(color.r * 0.12, color.g * 0.18, color.b * 0.25, 0.95))
+            var fill = ctx.createRadialGradient(cx - base * 0.34, cy - base * 0.42,
+                                                base * 0.03, cx + base * 0.12,
+                                                cy + base * 0.16, base * 1.38)
+            fill.addColorStop(0, Qt.rgba(0.82 + color.r * 0.18,
+                                         0.82 + color.g * 0.18,
+                                         0.82 + color.b * 0.18, 1))
+            fill.addColorStop(0.28, Qt.rgba(color.r * 0.8 + 0.15,
+                                            color.g * 0.8 + 0.15,
+                                            color.b * 0.8 + 0.15, 1))
+            fill.addColorStop(0.68, Qt.rgba(color.r * 0.48, color.g * 0.5,
+                                            color.b * 0.58, 1))
+            fill.addColorStop(1, Qt.rgba(color.r * 0.09, color.g * 0.12,
+                                         color.b * 0.18, 1))
             ctx.fillStyle = fill
             ctx.fill()
-            ctx.strokeStyle = Qt.rgba(color.r, color.g, color.b, 0.7)
-            ctx.lineWidth = 2
-            ctx.stroke()
 
-            shape(ctx, base * 0.78, energy * 0.55, 0.8)
-            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.17)
-            ctx.lineWidth = 1
-            ctx.stroke()
+            // Keep the light and shadow inside the animated silhouette.
+            ctx.save()
+            shape(ctx, base, energy, 0)
+            ctx.clip()
+            var shade = ctx.createLinearGradient(cx, cy - base, cx, cy + base)
+            shade.addColorStop(0, Qt.rgba(1, 1, 1, 0.12))
+            shade.addColorStop(0.55, Qt.rgba(0, 0, 0, 0))
+            shade.addColorStop(1, Qt.rgba(0, 0, 0, 0.35))
+            ctx.fillStyle = shade
+            ctx.fillRect(cx - base * 1.3, cy - base * 1.3,
+                         base * 2.6, base * 2.6)
 
-            var shine = ctx.createRadialGradient(cx - base * 0.36, cy - base * 0.55,
-                                                 0, cx - base * 0.36, cy - base * 0.55,
-                                                 base * 0.65)
-            shine.addColorStop(0, Qt.rgba(1, 1, 1, 0.22))
+            var shine = ctx.createRadialGradient(cx - base * 0.4, cy - base * 0.57,
+                                                 0, cx - base * 0.4, cy - base * 0.57,
+                                                 base * 0.55)
+            shine.addColorStop(0, Qt.rgba(1, 1, 1, 0.42))
             shine.addColorStop(1, Qt.rgba(1, 1, 1, 0))
-            shape(ctx, base * 0.93, energy, 0)
             ctx.fillStyle = shine
-            ctx.fill()
+            ctx.fillRect(cx - base, cy - base, base * 2, base * 2)
+            ctx.restore()
         }
 
         Connections {

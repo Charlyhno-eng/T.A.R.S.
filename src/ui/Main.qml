@@ -145,17 +145,6 @@ ApplicationWindow {
         }
     }
 
-    Rectangle {
-        anchors.centerIn: centralItem
-        width: 560
-        height: 560
-        radius: width / 2
-        color: "transparent"
-        border.width: 1
-        border.color: Qt.rgba(Theme.colorIdle.r, Theme.colorIdle.g,
-                              Theme.colorIdle.b, 0.08)
-    }
-
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
@@ -354,18 +343,6 @@ ApplicationWindow {
 
         width: 360
         height: 360
-
-        ParticleRing {
-            anchors.centerIn: parent
-
-            radius: 163
-            animationsEnabled: window.active
-
-            particleColor:
-                Theme.stateColor(
-                    window.assistantState
-                )
-        }
 
         JarvisSphere {
             id: sphere
