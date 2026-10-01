@@ -95,15 +95,11 @@ After building, close any running exported TARS application and run:
 uv run python scripts/install_linux.py --clean-dist
 ```
 
-This moves the latest Linux bundle from `dist` to `~/.local/lib/tars` and adds **T.A.R.S.** to your desktop's application menu (including the Linux Mint start menu). Launch it from the menu or run `~/.local/lib/tars/TARS`; the project folder is no longer needed to run the installed application. The launcher lives in `${XDG_DATA_HOME:-~/.local/share}/applications/tars.desktop`. No administrator privileges are needed.
+This installs the latest bundle in `~/.local/lib/tars` and adds it to the desktop application menu. Launch it from the menu or run `~/.local/lib/tars/TARS`. `--clean-dist` also removes older Linux exports from `dist`. Omit it to keep them. To install a bundle from elsewhere, pass its folder: `uv run python scripts/install_linux.py /path/to/TARS`.
 
-`--clean-dist` removes older generated Linux bundles from the project's `dist` folder after installation, freeing several gigabytes per export. Other files and Windows/macOS exports are preserved. Omit this option to keep older exports. To install an export from another location, pass its complete bundle folder: `uv run python scripts/install_linux.py /path/to/TARS`. Repeat after a new build to replace the installed version. Personal settings, API keys and downloaded models stay in `~/.tars`.
+Settings, API keys and downloaded models stay in `~/.tars`, outside the bundle. To uninstall, remove `~/.local/lib/tars` and the `tars.desktop` launcher; remove `~/.tars` separately to delete personal data. On another computer, set up the API key and shortcut, then download voice resources in the app. STT/TTS work offline; GLM requires internet. Set `TARS_DATA_DIR` to use a different data folder.
 
-To uninstall, remove `~/.local/lib/tars` and the `tars.desktop` launcher. Remove `~/.tars` separately only if you also want to delete personal settings and downloaded voice resources.
-
-Personal settings and API keys are never embedded in the export. Source and exported applications share `~/.tars/config` for settings and `~/.tars/{stt,tts}` for downloaded resources on the same computer. Legacy checkout settings in `config/` are imported once when you next run the source application or build an export. On another computer, configure the key/shortcut and download the required English/French resources from the interface. STT/TTS then work offline; GLM still requires internet access. `TARS_DATA_DIR` can override the writable data folder.
-
-To check a Linux bundle from a terminal:
+To check a Linux bundle:
 
 ```bash
 /path/to/TARS/TARS --check-bundle
@@ -111,4 +107,4 @@ To check a Linux bundle from a terminal:
 /path/to/TARS/TARS --check-bundle --check-shortcut
 ```
 
-The first command checks QML assets and voice-engine imports without recording or making an API request. The second also loads installed language voices and Parakeet, reporting missing voice resources. It does not download models. The third checks shortcut registration, conflict detection and release in an X11 session. Exported applications write logs to `~/.tars/logs/tars.log`.
+`--check-bundle` checks QML assets and voice-engine imports. Add `--check-models` to check installed voices and Parakeet, or `--check-shortcut` to check shortcut handling in X11. These checks do not download models or make API requests. Logs are written to `~/.tars/logs/tars.log`.
