@@ -1,6 +1,10 @@
 """Exercise packaged resources and dynamic voice imports without recording."""
 from __future__ import annotations
 
+from pathlib import Path
+import tempfile
+import threading
+
 from PySide6.QtCore import QCoreApplication, QEvent, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication
@@ -12,6 +16,29 @@ from core.global_shortcut import GlobalShortcut
 from core.paths import resource_directory
 from providers.stt.parakeet import ParakeetProvider
 from providers.tts.pocket_tts import PocketTTSProvider
+
+
+def _check_synthesis(provider: PocketTTSProvider, language: str, output: Path) -> None:
+    """Exercise streaming inference and produce recorder-format audio for STT."""
+    import numpy as np
+    from scipy.io import wavfile
+    from scipy.signal import resample_poly
+    from math import gcd
+
+    text = "Hello, this is TARS." if language == "en" else "Bonjour, je suis TARS."
+    chunks = list(provider.generate_stream(text, threading.Event()))
+    if not chunks:
+        raise RuntimeError(f"Pocket TTS {language} produced no audio.")
+    rate = chunks[0][1]
+    if rate <= 0 or any(chunk_rate != rate for _, chunk_rate in chunks):
+        raise RuntimeError(f"Pocket TTS {language} produced inconsistent sample rates.")
+    audio = np.frombuffer(b"".join(chunk for chunk, _ in chunks), dtype=np.float32)
+    if not audio.size or not np.isfinite(audio).all() or not np.any(audio):
+        raise RuntimeError(f"Pocket TTS {language} produced invalid audio.")
+    divisor = gcd(rate, 16_000)
+    audio = resample_poly(audio, 16_000 // divisor, rate // divisor)
+    wavfile.write(output, 16_000, (np.clip(audio, -1, 1) * 32767).astype(np.int16))
+    print(f"Pocket TTS {language}: streaming synthesis passed", flush=True)
 
 
 def check_bundle(load_models: bool = False, register_shortcut: bool = False) -> int:
@@ -27,6 +54,8 @@ def check_bundle(load_models: bool = False, register_shortcut: bool = False) -> 
         engine.rootContext().setContextProperty(name, value)
     errors = []
     engine.warnings.connect(lambda warnings: errors.extend(str(error) for error in warnings))
+    audio_directory = tempfile.TemporaryDirectory(prefix="tars-bundle-check-")
+    audio_files = []
     try:
         engine.load(QUrl.fromLocalFile(str(resources / "src" / "ui" / "Main.qml")))
         if not engine.rootObjects() or errors:
@@ -61,6 +90,9 @@ def check_bundle(load_models: bool = False, register_shortcut: bool = False) -> 
             provider = PocketTTSProvider(language=language)
             if load_models and provider.installed:
                 provider.load(language)
+                audio_path = Path(audio_directory.name) / f"{language}.wav"
+                _check_synthesis(provider, language, audio_path)
+                audio_files.append((language, audio_path))
                 provider.shutdown()
                 print(f"Pocket TTS {language}: loaded", flush=True)
             elif load_models:
@@ -70,6 +102,11 @@ def check_bundle(load_models: bool = False, register_shortcut: bool = False) -> 
             if not provider.installed:
                 raise RuntimeError("Parakeet is not installed; download models before checking their loading.")
             provider.load()
+            for language, audio_path in audio_files:
+                text = provider.transcribe(audio_path, language)
+                if not text:
+                    raise RuntimeError(f"Parakeet {language} produced an empty transcription.")
+                print(f"Parakeet {language}: transcription passed ({text})", flush=True)
             provider.shutdown()
             print("Parakeet: loaded", flush=True)
         if errors:
@@ -77,6 +114,7 @@ def check_bundle(load_models: bool = False, register_shortcut: bool = False) -> 
         print("Bundle check passed: QML, mascot, STT/TTS imports and language providers.", flush=True)
         return 0
     finally:
+        audio_directory.cleanup()
         engine.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         exporter.shutdown()

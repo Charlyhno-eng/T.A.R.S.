@@ -21,6 +21,9 @@ def main() -> int:
         parser.error(f"Build {args.platform} on that OS; this machine builds {host_platform()}.")
     if importlib.util.find_spec("PyInstaller") is None:
         parser.error("Install build tools first: uv sync --group build")
+    import torch
+    if torch.version.cuda is not None or torch.version.hip is not None:
+        parser.error("The export requires CPU-only PyTorch. Run uv sync --group build first.")
     # Preserve this user's checkout preferences for the exported application.
     # They are migrated to the writable user folder, never into the bundle.
     Settings()
@@ -34,12 +37,15 @@ def main() -> int:
     from PyInstaller.__main__ import run
     run([
         str(ROOT / "packaging" / "tars.spec"),
-        "--distpath", str(output), "--workpath", str(work), "--noconfirm",
+        "--distpath", str(output), "--workpath", str(work), "--noconfirm", "--clean",
     ])
     artifact = output / ("TARS.app" if args.platform == "macos" else "TARS")
     if not artifact.exists():
         raise RuntimeError("The build did not produce an application.")
     print(f"Export ready: {artifact}", flush=True)
+    size = sum(path.stat().st_size for path in artifact.rglob("*")
+               if path.is_file() and not path.is_symlink())
+    print(f"Bundle size: {size / (1024 ** 2):.1f} MiB (voice models stored separately)", flush=True)
     lock.unlock()
     return 0
 

@@ -39,6 +39,10 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python
 uv sync
 ```
 
+The project selects CPU-only PyTorch on Linux and Windows from the official
+PyTorch CPU index; macOS uses its native PyPI wheel. This avoids unused CUDA and
+Triton libraries while retaining both local voice engines.
+
 ### Configure GLM
 
 Open the gear in the upper right to choose the application and voice language and enter your Z.AI API key. Save it there before using GLM. The key stays in the local `~/.tars/config/llm_api_key` file (user-only permissions on Linux/macOS). You can replace or remove it from the same dialog. The configured model is `glm-5.3-flash`.
@@ -90,7 +94,7 @@ You can also build from a terminal (Linux first). With the default output locati
 
 For Linux, the executable is `TARS` inside `dist/TARS-linux-*/TARS/`. The `*` represents the unique suffix created for each export. If you exported through Settings or used `--output`, look in the destination you selected; the same `TARS/TARS` bundle layout is used. Build on the target OS and CPU architecture; PyInstaller does not cross-compile between operating systems. On Linux, build on the oldest distribution you intend to support. Windows/macOS builds must be tested on those systems before distributing them.
 
-The export includes Python, Qt/QML, the robot icon, Parakeet/NeMo, Pocket TTS and their dependencies. **Distribute the entire `TARS` folder or `TARS.app`**, including its libraries; copying only the executable will not work. Bundles can occupy several gigabytes. Linux still needs compatible system display/audio libraries and a tray-enabled desktop. On macOS, allow microphone access when prompted; signing/notarization for distribution is a separate release step.
+The export includes Python, Qt/QML, the robot icon, Parakeet/NeMo, Pocket TTS and their dependencies. **Distribute the entire `TARS` folder or `TARS.app`**, including its libraries; copying only the executable will not work. Exports use CPU-only PyTorch, omit PyTorch's native self-test payload, scan the interface's recursive QML imports (including Qt Quick Controls styles) to omit unrelated Qt modules, and strip Linux binary debug symbols. All application features remain included. Run `uv sync --group build` before rebuilding an older checkout. Each build clears PyInstaller's analysis cache and reports the complete bundle size; downloaded voice models remain outside it. Linux still needs compatible system display/audio libraries and a tray-enabled desktop. On macOS, allow microphone access when prompted; signing/notarization for distribution is a separate release step.
 
 ### Install on Linux and clean up exports
 
@@ -112,4 +116,4 @@ To check a Linux bundle:
 /path/to/TARS/TARS --check-bundle --check-shortcut
 ```
 
-`--check-bundle` checks QML assets and voice-engine imports. Add `--check-models` to check installed voices and Parakeet, or `--check-shortcut` to check shortcut handling in X11. These checks do not download models or make API requests. Logs are written to `~/.tars/logs/tars.log`.
+`--check-bundle` checks QML assets and voice-engine imports. Add `--check-models` to load installed voices, synthesize a short streaming sample in each installed language, and transcribe it with Parakeet, or `--check-shortcut` to check shortcut handling in X11. Test audio is temporary and is removed after the check. These checks do not download models or make API requests. Logs are written to `~/.tars/logs/tars.log`.

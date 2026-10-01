@@ -23,14 +23,27 @@ for package in ("lightning", "lightning_fabric", "pytorch_lightning"):
 analysis = Analysis(
     [str(root / "src" / "app.py")], pathex=[str(root / "src")],
     binaries=[], datas=datas, hiddenimports=hiddenimports,
+    hookspath=[str(root / "packaging" / "hooks")],
     excludes=["PyQt5", "PyQt6", "PySide2", "tkinter", "IPython", "pytest"],
     hooksconfig={"matplotlib": {"backends": ["Agg"]}},
 )
+# PyTorch wheels also contain native framework self-tests. Keep the runtime
+# tools (especially torch_shm_manager), but omit those test executables/data.
+def runtime_payload(entry):
+    path = Path(entry[0])
+    return not (path.parts[:2] == ("torch", "test") or
+                (path.parts[:2] == ("torch", "bin") and
+                 (path.name.startswith("test_") or path.name.endswith("Test"))))
+
+analysis.binaries = [entry for entry in analysis.binaries if runtime_payload(entry)]
+analysis.datas = [entry for entry in analysis.datas if runtime_payload(entry)]
 pyz = PYZ(analysis.pure)
 exe = EXE(pyz, analysis.scripts, [], exclude_binaries=True, name="TARS",
           console=sys.platform.startswith("linux"), upx=False,
+          strip=sys.platform.startswith("linux"),
           icon=str(root / "assets" / "tars-mascot.png") if sys.platform == "win32" else None)
-bundle = COLLECT(exe, analysis.binaries, analysis.datas, name="TARS", upx=False)
+bundle = COLLECT(exe, analysis.binaries, analysis.datas, name="TARS", upx=False,
+                 strip=sys.platform.startswith("linux"))
 if sys.platform == "darwin":
     from PIL import Image
     icon = root / "build" / "macos" / "tars.icns"
