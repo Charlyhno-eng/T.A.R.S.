@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from core.exporter import copy_bundle, host_platform, new_export_directory
@@ -92,19 +92,22 @@ class NativeShortcutTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
 
-    def test_playback_uses_a_local_url_for_paths_with_spaces_and_accents(self) -> None:
+    def test_streamed_playback_returns_to_idle_only_when_audio_finishes(self) -> None:
         from core.assistant_controller import AssistantController
         with tempfile.TemporaryDirectory() as directory:
             settings = Settings(directory=Path(directory))
             with patch("core.assistant_controller.Settings", return_value=settings):
                 assistant = AssistantController()
             try:
-                urls = []
-                assistant.audioPathChanged.connect(urls.append)
-                path = str(Path(directory) / "voix été.wav")
-                assistant._on_speech_finished(path)
-                self.assertEqual(QUrl(urls[0]).toLocalFile(), path)
-                self.assertTrue(QUrl(urls[0]).isLocalFile())
+                assistant._response_pending = True
+                assistant._set_state("speaking")
+                with patch.object(assistant._tts_service, "finish_response") as finish:
+                    assistant._on_llm_response("Bonjour !")
+                    finish.assert_called_once()
+                self.assertEqual(assistant.state, "speaking")
+                assistant._tts_service.speechFinished.emit()
+                self.assertEqual(assistant.state, "idle")
+                self.assertFalse(assistant._response_pending)
             finally:
                 assistant.shutdown()
 

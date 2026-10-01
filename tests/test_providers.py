@@ -81,7 +81,7 @@ class ProviderTests(unittest.TestCase):
 
     def test_llm_service_routes_to_default_or_injected_provider(self) -> None:
         self.assertIsInstance(LLMService()._provider, GLMProvider)
-        provider = Mock()
+        provider = Mock(spec=["complete"])
         provider.complete.return_value = "Hello."
         service = LLMService(provider=provider)
         replies = []

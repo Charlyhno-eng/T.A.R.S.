@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Callable
 from core.paths import data_directory as user_data_directory
@@ -251,6 +253,18 @@ class PocketTTSProvider:
             str(output_path), self._model.sample_rate, audio.cpu().numpy()
         )
         return output_path
+
+    def generate_stream(self, text: str, stop: threading.Event) -> Iterator[tuple[bytes, int]]:
+        """Yield mono float32 PCM as soon as Pocket TTS decodes it."""
+        if not self.initialized or self._model is None:
+            raise RuntimeError("Pocket TTS n'est pas initialisé.")
+        import torch
+
+        torch.set_num_threads(1)
+        for audio in self._model.generate_audio_stream(self._voice_state, text.strip(), stop=stop):
+            if stop.is_set():
+                break
+            yield audio.detach().cpu().numpy().astype("float32", copy=False).tobytes(), self._model.sample_rate
 
     def shutdown(self) -> None:
         """Release provider resources."""

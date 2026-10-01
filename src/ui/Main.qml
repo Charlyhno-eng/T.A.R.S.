@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-import QtMultimedia 6.5
 import theme 1.0
 import "components"
 
@@ -27,71 +26,6 @@ ApplicationWindow {
 
     property string assistantState:
         assistant.state
-
-    AudioOutput {
-        id: audioOutput
-
-        volume: 1.0
-    }
-
-    MediaPlayer {
-        id: audioPlayer
-
-        audioOutput: audioOutput
-
-        onPlaybackStateChanged: {
-            if (
-                playbackState ===
-                MediaPlayer.PlayingState
-            ) {
-                console.log(
-                    "[T.A.R.S.][Audio] Lecture de la réponse."
-                )
-            }
-        }
-
-        onMediaStatusChanged: {
-            if (
-                mediaStatus ===
-                MediaPlayer.EndOfMedia
-            ) {
-                console.log(
-                    "[T.A.R.S.][Audio] Fin réelle de la réponse."
-                )
-
-                assistant.audioPlaybackFinished()
-            }
-        }
-
-        onErrorOccurred: {
-            if (
-                error !==
-                MediaPlayer.NoError
-            ) {
-                console.error(
-                    "[T.A.R.S.][Audio] Erreur :",
-                    errorString
-                )
-
-                assistant.audioPlaybackFinished()
-            }
-        }
-    }
-
-    Connections {
-        target: assistant
-
-        function onAudioPathChanged(audioPath) {
-            if (!audioPath)
-                return
-
-            audioPlayer.stop()
-
-            audioPlayer.source = audioPath
-
-            audioPlayer.play()
-        }
-    }
 
     Rectangle {
         anchors.fill: parent

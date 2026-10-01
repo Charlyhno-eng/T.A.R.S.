@@ -14,6 +14,11 @@ French remains available in Settings. The selected application and voice languag
 T.A.R.S. is not a finished product, but an accessible base for building a personal assistant.
 The interface sends each transcription to GLM and speaks its response.
 By default, GLM gives a brief spoken reply to reduce response time; you can ask for more detail when needed.
+GLM uses low reasoning effort for conversation and streams its reply. T.A.R.S. starts synthesizing
+the first sentence (or a bounded phrase in a long sentence) while the rest arrives, and plays Pocket TTS
+audio as it is generated instead of waiting for a complete audio file. The response appears progressively;
+the assistant becomes available again after all speech has played. Actual latency still depends on
+your CPU, network connection, and GLM availability.
 The app displays its name as “T.A.R.S.”, while the assistant uses “TARS” without periods in spoken responses.
 
 ---
@@ -38,7 +43,7 @@ uv sync
 
 Open the gear in the upper right to choose the application and voice language and enter your Z.AI API key. Save it there before using GLM. The key stays in the local `~/.tars/config/llm_api_key` file (user-only permissions on Linux/macOS). You can replace or remove it from the same dialog. The configured model is `glm-5.3-flash`.
 
-Providers live in `src/providers/stt`, `src/providers/tts`, and `src/providers/llm`. GLM 5.3 Flash is implemented in `glm_5_3_flash.py`. Each `adapter.py` only selects the provider used by its service; local resource installation and voice selection belong to the STT/TTS providers. To switch models, implement a provider with the same `complete(text, language, history)` method and change the import in `src/providers/llm/adapter.py`. You can also pass a provider directly to `LLMService`. For an OpenAI-compatible chat endpoint, supply a different `LLMConfig` to `GLMProvider`.
+Providers live in `src/providers/stt`, `src/providers/tts`, and `src/providers/llm`. GLM 5.3 Flash is implemented in `glm_5_3_flash.py`. Each `adapter.py` only selects the provider used by its service; local resource installation and voice selection belong to the STT/TTS providers. To switch models, implement a provider with the same `complete(text, language, history)` method and change the import in `src/providers/llm/adapter.py`. An optional `stream(text, language, history)` method can yield text fragments for earlier speech; providers with only `complete` still work. You can also pass a provider directly to `LLMService`. For an OpenAI-compatible chat endpoint, supply a different `LLMConfig` to `GLMProvider`; the GLM-specific reasoning option is only sent for the default model.
 
 ### Run
 

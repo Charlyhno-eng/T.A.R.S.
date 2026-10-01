@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import logging
 import threading
-import uuid
-from pathlib import Path
-from core.paths import temporary_directory
+from queue import Queue
 
 from PySide6.QtCore import QObject, Signal, Slot
 
 from providers.tts.adapter import TTSAdapter
+from core.audio_playback import AudioPlayback
 
 
 logger = logging.getLogger("TARS.TTS")
@@ -22,7 +21,10 @@ class TTSService(QObject):
     errorOccurred = Signal(str)
 
     speechStarted = Signal()
-    speechFinished = Signal(str)
+    speechFinished = Signal()
+    _audioChunk = Signal(int, bytes, int)
+    _generationFinished = Signal(int)
+    _generationFailed = Signal(int, str)
 
     installationStarted = Signal()
     installationFinished = Signal()
@@ -44,13 +46,17 @@ class TTSService(QObject):
 
         self._lock = threading.Lock()
 
-        self._audio_directory = temporary_directory("tars_tts")
-
-        self._audio_directory.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-        self._audio_path: Path | None = None
+        self._session = 0
+        self._text_queue: Queue[str | None] = Queue()
+        self._stop_event = threading.Event()
+        self._worker: threading.Thread | None = None
+        self._playback = AudioPlayback(self)
+        self._playback.started.connect(self._on_playback_started)
+        self._playback.finished.connect(self._on_playback_finished)
+        self._playback.errorOccurred.connect(self._on_playback_error)
+        self._audioChunk.connect(self._on_audio_chunk)
+        self._generationFinished.connect(self._on_generation_finished)
+        self._generationFailed.connect(self._on_generation_failed)
 
     @property
     def initialized(self) -> bool:
@@ -66,7 +72,8 @@ class TTSService(QObject):
     def set_language(self, language: str) -> None:
         """Switch voices without keeping the previous model in memory."""
         with self._lock:
-            if self._speaking or self._initializing or self._installing:
+            if (self._speaking or self._initializing or self._installing
+                    or (self._worker is not None and self._worker.is_alive())):
                 raise RuntimeError("Le moteur vocal est occupé.")
             if language == self._adapter.language:
                 return
@@ -222,132 +229,110 @@ class TTSService(QObject):
 
         self.statusChanged.emit(message)
 
-    @Slot(str)
-    def speak(
-        self,
-        text: str,
-    ) -> None:
-        """Generate speech from the supplied text."""
-        text = text.strip()
-
-        if not text:
-            return
-
+    def begin_response(self) -> None:
+        """Start one serialized synthesis worker while GLM is still responding."""
         with self._lock:
-            if not self._initialized:
-                should_reject = True
-            elif self._speaking:
-                should_reject = True
-            else:
-                should_reject = False
-                self._speaking = True
-
-        if should_reject:
-            self.errorOccurred.emit("Le moteur vocal n'est pas disponible.")
-            return
-
-        self.stateChanged.emit("speaking")
-        self.speechStarted.emit()
-
-        thread = threading.Thread(
+            if not self._initialized or self._speaking:
+                raise RuntimeError("Le moteur vocal n'est pas disponible.")
+            # A cancelled generation must release the model before it is reused.
+            if self._worker is not None and self._worker.is_alive():
+                raise RuntimeError("Le moteur vocal est occupé.")
+            self._session += 1
+            session = self._session
+            self._speaking = True
+            self._text_queue = Queue()
+            self._stop_event = threading.Event()
+        self._playback.begin()
+        self._worker = threading.Thread(
             target=self._speak_worker,
-            args=(text,),
+            args=(session, self._text_queue, self._stop_event),
             name="TARS-TTS-Speech",
             daemon=True,
         )
+        self._worker.start()
 
-        thread.start()
+    @Slot(str)
+    def speak(self, text: str) -> None:
+        """Queue a sentence; synthesis and playback overlap subsequent sentences."""
+        if text.strip() and self._speaking:
+            self._text_queue.put(text.strip())
 
-    def _speak_worker(
-        self,
-        text: str,
-    ) -> None:
-        audio_path = self._audio_directory / f"tars_{uuid.uuid4().hex}.wav"
+    def finish_response(self) -> None:
+        """Mark the last sentence without ending playback prematurely."""
+        if self._speaking:
+            self._text_queue.put(None)
 
+    def _speak_worker(self, session: int, texts: Queue[str | None],
+                      stop: threading.Event) -> None:
         try:
-            logger.info(
-                "[T.A.R.S.][TTS] Génération : %s",
-                text,
-            )
-
-            self.statusChanged.emit(
-                "Génération de la réponse vocale..."
-            )
-
-            generated_path = self._adapter.generate(
-                text=text,
-                output_path=audio_path,
-            )
-
-            with self._lock:
-                self._audio_path = generated_path
-
-            logger.info(
-                "[T.A.R.S.][TTS] Audio généré : %s",
-                generated_path,
-            )
-
-            self.speechFinished.emit(
-                str(generated_path)
-            )
-
+            while not stop.is_set():
+                text = texts.get()
+                if text is None or stop.is_set():
+                    break
+                for pcm, sample_rate in self._adapter.generate_stream(text, stop):
+                    if stop.is_set():
+                        return
+                    self._audioChunk.emit(session, pcm, sample_rate)
+            if not stop.is_set():
+                self._generationFinished.emit(session)
         except Exception as exc:
-            logger.exception(
-                "[T.A.R.S.][TTS] Erreur de génération."
-            )
+            logger.exception("[T.A.R.S.][TTS] Erreur de génération.")
+            if not stop.is_set():
+                self._generationFailed.emit(session, str(exc))
 
-            with self._lock:
-                self._speaking = False
+    @Slot(int, bytes, int)
+    def _on_audio_chunk(self, session: int, pcm: bytes, sample_rate: int) -> None:
+        if session == self._session and self._speaking:
+            self._playback.append(pcm, sample_rate)
 
-            audio_path.unlink(missing_ok=True)
+    @Slot(int)
+    def _on_generation_finished(self, session: int) -> None:
+        if session == self._session and self._speaking:
+            self._playback.end()
 
-            self.errorOccurred.emit(str(exc))
-            self.statusChanged.emit(
-                "Erreur lors de la génération audio."
-            )
+    @Slot(int, str)
+    def _on_generation_failed(self, session: int, message: str) -> None:
+        if session == self._session and self._speaking:
+            self._on_playback_error(message)
 
-            if self.initialized:
-                self.stateChanged.emit("ready")
+    def _on_playback_started(self) -> None:
+        self.statusChanged.emit("Réponse de T.A.R.S....")
+        self.stateChanged.emit("speaking")
+        self.speechStarted.emit()
 
-    @Slot()
-    def playback_finished(self) -> None:
-        """Release the speaking state after media playback ends."""
-
+    def _on_playback_finished(self) -> None:
         with self._lock:
-            if not self._speaking:
-                return
-
             self._speaking = False
-            audio_path = self._audio_path
-            self._audio_path = None
-
-        logger.info(
-            "[T.A.R.S.][TTS] Lecture audio terminée."
-        )
-
-        self.statusChanged.emit(
-            "Moteur vocal prêt."
-        )
-
         self.stateChanged.emit("ready")
-        if audio_path is not None:
-            audio_path.unlink(missing_ok=True)
+        self.speechFinished.emit()
+
+    def _on_playback_error(self, message: str) -> None:
+        self.cancel_response()
+        self.errorOccurred.emit(message)
+        if self.initialized:
+            self.stateChanged.emit("ready")
+
+    def cancel_response(self) -> None:
+        """Stop audio and invalidate queued worker signals after an error."""
+        with self._lock:
+            self._session += 1
+            self._speaking = False
+            self._stop_event.set()
+            self._text_queue.put(None)
+        self._playback.stop()
 
     def shutdown(self) -> None:
-        """Release provider resources."""
+        """Stop synthesis before releasing provider resources."""
+        self.cancel_response()
+        if self._worker is not None:
+            self._worker.join(timeout=5)
+            if self._worker.is_alive():
+                logger.warning("Pocket TTS is still stopping; leaving resources to its worker.")
+                return
         try:
             self._adapter.shutdown()
         except Exception:
-            logger.exception(
-                "[T.A.R.S.][TTS] Erreur lors de l'arrêt."
-            )
-
+            logger.exception("[T.A.R.S.][TTS] Erreur lors de l'arrêt.")
         with self._lock:
             self._initialized = False
-            self._speaking = False
-            audio_path = self._audio_path
-            self._audio_path = None
-
-        if audio_path is not None:
-            audio_path.unlink(missing_ok=True)
         self.stateChanged.emit("idle")

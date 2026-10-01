@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl
+from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from core.audio_recorder import AudioRecorder
 from core.llm_service import LLMService
@@ -25,7 +25,6 @@ class AssistantController(QObject):
     modelsDownloadingChanged = Signal()
     transcriptChanged = Signal()
     responseChanged = Signal()
-    audioPathChanged = Signal(str)
     languageChanged = Signal()
     llmKeyConfiguredChanged = Signal()
 
@@ -83,6 +82,7 @@ class AssistantController(QObject):
         self._status = "Initialisation..."
         self._transcript = ""
         self._response = ""
+        self._response_pending = False
         self._tts_ready = False
         self._stt_ready = False
         self._tts_loading = False
@@ -97,6 +97,8 @@ class AssistantController(QObject):
         self._stt_service = STTService(parent=self, language=self._language)
         self._recorder = AudioRecorder(parent=self)
         self._llm_service = LLMService(parent=self)
+        self._llm_service.responseUpdated.connect(self._on_llm_update)
+        self._llm_service.sentenceReady.connect(self._on_llm_sentence)
         self._llm_service.responseReady.connect(self._on_llm_response)
         self._llm_service.errorOccurred.connect(self._on_llm_error)
 
@@ -308,12 +310,6 @@ class AssistantController(QObject):
         self._set_state("thinking")
         self._stt_service.transcribe(audio_path)
 
-    @Slot()
-    def audioPlaybackFinished(self) -> None:
-        """Return to idle after audio playback ends."""
-        self._tts_service.playback_finished()
-        self._set_state("idle")
-
     def _on_tts_state_changed(self, state: str) -> None:
         loading_before = self.modelsLoading
         ready_before = self.modelsReady
@@ -380,7 +376,8 @@ class AssistantController(QObject):
         if self._models_downloading:
             self._complete_model_loading()
             return
-        self._set_status("Modèles locaux prêts.")
+        if self._state in ("idle", "loading"):
+            self._set_status("Modèles locaux prêts.")
 
     def _complete_model_loading(self) -> None:
         if not self._downloads_complete or not self.modelsReady:
@@ -408,27 +405,49 @@ class AssistantController(QObject):
             self._set_state("idle")
             return
         self._set_status("Réponse de GLM en cours...")
+        try:
+            self._tts_service.begin_response()
+        except RuntimeError as exc:
+            self._on_tts_error(str(exc))
+            return
+        self._response_pending = True
         self._llm_service.respond(self._transcript, self._language)
 
-    def _on_llm_response(self, answer: str) -> None:
+    def _on_llm_update(self, answer: str) -> None:
+        if not self._response_pending:
+            return
         self._response = answer
         self.responseChanged.emit()
-        self._tts_service.speak(answer)
+
+    def _on_llm_sentence(self, sentence: str) -> None:
+        if self._response_pending:
+            self._tts_service.speak(sentence)
+
+    def _on_llm_response(self, answer: str) -> None:
+        if self._response_pending:
+            self._on_llm_update(answer)
+            self._tts_service.finish_response()
 
     def _on_llm_error(self, error: str) -> None:
         logger.error("Erreur GLM : %s", error)
+        self._response_pending = False
+        self._llm_service.cancel()
+        self._tts_service.cancel_response()
         self._transcript = ""
         self.transcriptChanged.emit()
         self._set_status(f"GLM: {error}")
         self._set_state("idle")
 
-    def _on_speech_finished(self, audio_path: str) -> None:
-        self._set_status("Réponse de T.A.R.S....")
-        self._set_state("speaking")
-        self.audioPathChanged.emit(QUrl.fromLocalFile(audio_path).toString())
+    def _on_speech_finished(self) -> None:
+        self._response_pending = False
+        self._set_status("Modèles locaux prêts.")
+        self._set_state("idle")
 
     def _on_tts_error(self, error: str) -> None:
         logger.error("Erreur Pocket TTS : %s", error)
+        self._response_pending = False
+        self._llm_service.cancel()
+        self._tts_service.cancel_response()
         prefix = "Pocket TTS error" if self._language == "en" else "Erreur Pocket TTS"
         self._set_status(f"{prefix} : {error}")
         if self._state in ("thinking", "speaking"):
@@ -455,6 +474,8 @@ class AssistantController(QObject):
 
     def shutdown(self) -> None:
         """Release provider resources."""
+        self._response_pending = False
+        self._llm_service.cancel()
         if self._recorder.recording:
             try:
                 self._recorder.cancel()

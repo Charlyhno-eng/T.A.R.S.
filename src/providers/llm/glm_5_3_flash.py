@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -24,10 +25,8 @@ def _api_key() -> str:
     return Settings().llm_api_key()
 
 
-def complete(text: str, language: str, history: list[dict[str, str]],
-             config: LLMConfig | None = None) -> str:
-    """Request a GLM answer for the transcript and recent conversation."""
-    config = config or LLMConfig()
+def _request(text: str, language: str, history: list[dict[str, str]],
+             config: LLMConfig, *, streaming: bool) -> Request:
     key = _api_key()
     if not key:
         raise RuntimeError("Z.AI API key is missing. Add it in Settings.")
@@ -44,17 +43,28 @@ def complete(text: str, language: str, history: list[dict[str, str]],
         *history[-10:],
         {"role": "user", "content": text},
     ]
-    request = Request(
+    body = {
+        "model": config.model,
+        "messages": messages,
+        "max_tokens": config.max_response_tokens,
+        "stream": streaming,
+    }
+    # GLM 5.3 cannot disable thinking; its default effort is max.
+    # Keep custom OpenAI-compatible backends free of GLM-specific options.
+    if config.model == MODEL:
+        body["reasoning_effort"] = "low"
+    return Request(
         config.api_url,
-        data=json.dumps({
-            "model": config.model,
-            "messages": messages,
-            "max_tokens": config.max_response_tokens,
-            "stream": False,
-        }).encode(),
+        data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         method="POST",
     )
+
+
+def complete(text: str, language: str, history: list[dict[str, str]],
+             config: LLMConfig | None = None) -> str:
+    """Request a GLM answer for the transcript and recent conversation."""
+    request = _request(text, language, history, config or LLMConfig(), streaming=False)
     try:
         with urlopen(request, timeout=60) as response:
             payload = json.load(response)
@@ -71,6 +81,60 @@ def complete(text: str, language: str, history: list[dict[str, str]],
     return answer
 
 
+def stream(text: str, language: str, history: list[dict[str, str]],
+           config: LLMConfig | None = None) -> Iterator[str]:
+    """Yield spoken content from SSE events, excluding internal reasoning."""
+    request = _request(text, language, history, config or LLMConfig(), streaming=True)
+    received_content = False
+    finished = False
+    try:
+        with urlopen(request, timeout=60) as response:
+            event_lines: list[str] = []
+            for raw_line in response:
+                line = raw_line.decode("utf-8").rstrip("\r\n")
+                if line.startswith("data:"):
+                    event_lines.append(line[5:].lstrip())
+                if line or not event_lines:
+                    continue
+                data = "\n".join(event_lines)
+                event_lines.clear()
+                if data == "[DONE]":
+                    finished = True
+                    break
+                try:
+                    event = json.loads(data)
+                    if "error" in event:
+                        raise RuntimeError("GLM API returned a streaming error.")
+                    choices = event.get("choices", [])
+                    if not choices:
+                        continue  # Usage-only event.
+                    choice = choices[0]
+                    reason = choice.get("finish_reason")
+                    if reason not in (None, "stop", "length"):
+                        raise RuntimeError("GLM API interrupted the response.")
+                    content = choice.get("delta", {}).get("content")
+                    if content is not None and not isinstance(content, str):
+                        raise ValueError("Invalid content")
+                except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
+                    raise RuntimeError("GLM API returned an invalid stream.") from exc
+                if content:
+                    received_content = received_content or bool(content.strip())
+                    yield content
+                if reason:
+                    finished = True
+                    break
+            if not finished:
+                raise RuntimeError("GLM API connection closed before the response finished.")
+    except HTTPError as exc:
+        raise RuntimeError(f"GLM API returned HTTP {exc.code}.") from exc
+    except (URLError, OSError) as exc:
+        raise RuntimeError("Unable to connect to the GLM API.") from exc
+    except UnicodeError as exc:
+        raise RuntimeError("GLM API returned an invalid stream.") from exc
+    if not received_content:
+        raise RuntimeError("GLM API returned an empty response.")
+
+
 class GLMProvider:
     """Default HTTP provider; replace this to use another LLM backend."""
 
@@ -79,3 +143,6 @@ class GLMProvider:
 
     def complete(self, text: str, language: str, history: list[dict[str, str]]) -> str:
         return complete(text, language, history, self.config)
+
+    def stream(self, text: str, language: str, history: list[dict[str, str]]) -> Iterator[str]:
+        return stream(text, language, history, self.config)
