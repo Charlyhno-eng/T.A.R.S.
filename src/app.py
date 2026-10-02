@@ -9,6 +9,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QIcon
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
 
 from core.assistant_controller import AssistantController
@@ -52,6 +53,7 @@ def main() -> int:
     """Launch the Qt application and return its exit code."""
     configure_logging()
 
+    QQuickWindow.setDefaultAlphaBuffer(True)
     app = QApplication(sys.argv)
 
     app.setApplicationName("T.A.R.S.")

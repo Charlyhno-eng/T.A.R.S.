@@ -22,30 +22,20 @@ ApplicationWindow {
 
     title: "T.A.R.S. — Assistant"
 
-    color: Theme.backgroundTop
+    color: "transparent"
 
     property string assistantState:
         assistant.state
 
-    Rectangle {
-        anchors.fill: parent
-
-        gradient: Gradient {
-            GradientStop {
-                position: 0.0
-                color: Theme.backgroundTop
-            }
-
-            GradientStop {
-                position: 1.0
-                color: Theme.backgroundBottom
-            }
-        }
+    background: FrostedBackground {
     }
 
     Canvas {
         anchors.fill: parent
-        opacity: 0.045
+        opacity: 0.018
+
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
 
         onPaint: {
             var ctx = getContext("2d")
