@@ -14,6 +14,7 @@ Dialog {
     onOpened: {
         keyField.text = assistant.llmApiKey
         keyEntry.revealKey = false
+        windowSettings.reload()
     }
     onClosed: {
         shortcutDialog.close()
@@ -176,6 +177,17 @@ Dialog {
                 }
 
                 Item { width: 1; height: 8 }
+
+                WindowStartupSettings {
+                    id: windowSettings
+                    width: parent.width - 48
+                }
+
+                Rectangle {
+                    width: parent.width - 48
+                    height: 1
+                    color: Theme.panelBorder
+                }
 
                 Text {
                     text: assistant.language === "en" ? "GLOBAL SHORTCUT" : "RACCOURCI GLOBAL"

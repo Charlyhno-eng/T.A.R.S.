@@ -80,3 +80,26 @@ class SettingsTests(unittest.TestCase):
                 settings = self.make_settings(directory)
                 settings._path.write_text(content, encoding="utf-8")
                 self.assertEqual(settings.shortcut(), "")
+
+    def test_window_preferences_round_trip_preserves_other_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            settings = self.make_settings(directory)
+            self.assertEqual(settings.window_startup(), Settings.WINDOW_DEFAULTS)
+            settings.set_language("fr")
+            settings.set_shortcut("Ctrl+Alt+Space")
+            settings.set_window_startup(True, 1200, 800, -500, 20)
+            restarted = self.make_settings(directory)
+            self.assertEqual(restarted.window_startup(),
+                             dict(fullscreen=True, width=1200, height=800, x=-500, y=20))
+            self.assertEqual(restarted.language(), "fr")
+            self.assertEqual(restarted.shortcut(), "Ctrl+Alt+Space")
+            with self.assertRaises(ValueError):
+                settings.set_window_startup(False, 100, 100, 0, 0)
+            self.assertTrue(settings.window_startup()["fullscreen"])
+
+    def test_invalid_window_config_uses_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            settings = self.make_settings(directory)
+            for value in ('42', '{}', '{"fullscreen": true}', 'invalid'):
+                settings._set_application_value("window_startup", value)
+                self.assertEqual(settings.window_startup(), Settings.WINDOW_DEFAULTS)

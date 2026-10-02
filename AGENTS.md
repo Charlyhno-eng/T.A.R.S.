@@ -6,7 +6,7 @@ T.A.R.S. is a lightweight personal voice assistant and a foundation for building
 
 - Hold the central robot control to record speech; local Parakeet TDT 0.6B v3 transcribes it, GLM 5.3 Flash (Z.AI API, low reasoning effort) streams a concise reply, and local Pocket TTS streams speech directly to Qt audio while the rest of the reply arrives.
 - English (default) and French are supported. The selected language persists. STT/TTS resources can be installed from the interface and then run offline; GLM needs internet access and a Z.AI API key.
-- The interface has a semi-transparent midnight-blue background with simulated frosted glass, listening/processing/speaking states, an animated robot head, and settings for language and API key management.
+- The interface has a semi-transparent midnight-blue background with simulated frosted glass, listening/processing/speaking states, an animated robot head, and settings for language, API key management, and saved startup full-screen mode or window dimensions and position.
 - On Linux X11 (including Mint XFCE), Windows and macOS, a saved global shortcut supports hold-to-talk while hidden. Closing hides to the robot tray icon; its menu reopens or quits. Without a tray, closing quits normally.
 - Settings can export a native executable bundle (Linux listed first). Build with `uv run --group build python scripts/build_app.py`; build each OS/architecture on its own platform. Exports use CPU-only PyTorch, scanned QML dependencies, and stripped Linux binaries; personal data stays outside the bundle. On Linux, `uv run python scripts/install_linux.py --clean-dist` moves the latest export to `~/.local/lib/tars`, registers an application-menu launcher, and removes older Linux exports.
 

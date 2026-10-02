@@ -47,6 +47,8 @@ Triton libraries while retaining both local voice engines.
 
 Open the gear in the upper right to choose the application and voice language and enter your Z.AI API key. Save it there before using GLM. The key stays in the local `~/.tars/config/llm_api_key` file (user-only permissions on Linux/macOS). You can replace or remove it from the same dialog. The configured model is `glm-5.3-flash`.
 
+In Settings, **Window at startup** lets you choose full screen or a window with a saved width, height and X/Y position in desktop pixels (negative coordinates support displays to the left or above the primary display). The minimum window size is 760 × 560; the default is 1000 × 700 at X=100, Y=100. Click **Save window settings** to persist the choice in `~/.tars/config/config.toml`; it applies on the next launch. Reopening from the tray preserves the full-screen mode of the hidden window. Desktop window managers may constrain placement, particularly on Wayland.
+
 Providers live in `src/providers/stt`, `src/providers/tts`, and `src/providers/llm`. GLM 5.3 Flash is implemented in `glm_5_3_flash.py`. Each `adapter.py` only selects the provider used by its service; local resource installation and voice selection belong to the STT/TTS providers. To switch models, implement a provider with the same `complete(text, language, history)` method and change the import in `src/providers/llm/adapter.py`. An optional `stream(text, language, history)` method can yield text fragments for earlier speech; providers with only `complete` still work. You can also pass a provider directly to `LLMService`. For an OpenAI-compatible chat endpoint, supply a different `LLMConfig` to `GLMProvider`; the GLM-specific reasoning option is only sent for the default model.
 
 ### Run

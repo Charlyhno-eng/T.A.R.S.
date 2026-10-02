@@ -84,6 +84,36 @@ class Settings:
     def set_shortcut(self, shortcut: str) -> None:
         self._set_application_value("shortcut", shortcut)
 
+    WINDOW_DEFAULTS = {"fullscreen": False, "width": 1000, "height": 700, "x": 100, "y": 100}
+
+    def window_startup(self) -> dict:
+        application = self._read().get("application", {})
+        raw = application.get("window_startup", "") if isinstance(application, dict) else ""
+        try:
+            values = json.loads(raw)
+            self._validate_window(values)
+            return values
+        except (TypeError, ValueError, KeyError):
+            return self.WINDOW_DEFAULTS.copy()
+
+    @classmethod
+    def _validate_window(cls, values: dict) -> None:
+        if not isinstance(values, dict) or values.keys() != cls.WINDOW_DEFAULTS.keys():
+            raise ValueError("Invalid window preferences")
+        for name, default in cls.WINDOW_DEFAULTS.items():
+            value = values[name]
+            if type(value) is not type(default):
+                raise ValueError("Invalid window preference type")
+            if name != "fullscreen" and not (
+                {"width": 760, "height": 560, "x": -100000, "y": -100000}[name] <= value <= 100000
+            ):
+                raise ValueError("Invalid window dimensions or position")
+
+    def set_window_startup(self, fullscreen: bool, width: int, height: int, x: int, y: int) -> None:
+        values = dict(fullscreen=fullscreen, width=width, height=height, x=x, y=y)
+        self._validate_window(values)
+        self._set_application_value("window_startup", json.dumps(values))
+
     def _set_application_value(self, name: str, value: str) -> None:
         """Update one preference while preserving the other TOML sections."""
         self._path.parent.mkdir(parents=True, exist_ok=True)

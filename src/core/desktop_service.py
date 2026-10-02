@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Property, QTimer, Qt, Signal, Slot, QKeyCombination
-from PySide6.QtGui import QIcon, QKeySequence
+from PySide6.QtGui import QIcon, QKeySequence, QWindow
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from core.global_shortcut import GlobalShortcut, shortcut_combination
@@ -14,6 +14,7 @@ class DesktopService(QObject):
     """Keep the assistant accessible through the tray and a global shortcut."""
 
     trayAvailableChanged = Signal()
+    windowStartupChanged = Signal()
     shortcutChanged = Signal()
     shortcutErrorChanged = Signal()
 
@@ -37,6 +38,8 @@ class DesktopService(QObject):
         self._assistant = assistant
         self._settings = Settings()
         self._window = None
+        self._window_startup = self._settings.window_startup()
+        self._window_fullscreen = False
         self._shortcut = self._settings.shortcut()
         self._error = ""
         self._capturing = False
@@ -72,6 +75,27 @@ class DesktopService(QObject):
 
     def attach_window(self, window) -> None:
         self._window = window
+        preferences = self._window_startup
+        window.resize(preferences["width"], preferences["height"])
+        window.setPosition(preferences["x"], preferences["y"])
+        if preferences["fullscreen"]:
+            window.showFullScreen()
+        else:
+            window.showNormal()
+
+    @Property("QVariantMap", notify=windowStartupChanged)
+    def windowStartup(self):
+        return self._window_startup.copy()
+
+    @Slot(bool, int, int, int, int, result=bool)
+    def saveWindowStartup(self, fullscreen, width, height, x, y) -> bool:
+        try:
+            self._settings.set_window_startup(fullscreen, width, height, x, y)
+        except (OSError, ValueError):
+            return False
+        self._window_startup = self._settings.window_startup()
+        self.windowStartupChanged.emit()
+        return True
 
     @Property(bool, notify=trayAvailableChanged)
     def trayAvailable(self) -> bool:
@@ -94,7 +118,10 @@ class DesktopService(QObject):
     @Slot()
     def showWindow(self) -> None:
         if self._window is not None:
-            self._window.showNormal()
+            if self._window_fullscreen:
+                self._window.showFullScreen()
+            else:
+                self._window.showNormal()
             self._window.raise_()
             self._window.requestActivate()
 
@@ -105,6 +132,7 @@ class DesktopService(QObject):
         self._refresh_tray()
         if not self._tray_available:
             return False
+        self._window_fullscreen = self._window.visibility() == QWindow.Visibility.FullScreen
         self._window.hide()
         if not self._notified_hidden:
             self._notify(

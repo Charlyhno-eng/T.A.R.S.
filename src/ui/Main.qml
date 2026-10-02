@@ -12,7 +12,7 @@ ApplicationWindow {
     minimumWidth: 760
     minimumHeight: 560
 
-    visible: true
+    visible: false
 
     onClosing: function(close) {
         settingsDialog.close()

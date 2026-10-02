@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject, Qt, Signal, QMetaObject, QUrl, QCoreApplication, QEvent
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QKeySequence, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
@@ -157,7 +157,27 @@ class DesktopTests(unittest.TestCase):
         self.window = Mock()
         self.window.isVisible.return_value = False
         self.desktop.attach_window(self.window)
+        self.window.reset_mock()
         self.addCleanup(self.desktop.shutdown)
+
+    def test_startup_geometry_and_fullscreen_are_restored(self) -> None:
+        self.assertTrue(self.desktop.saveWindowStartup(True, 1200, 800, -100, 50))
+        window = Mock()
+        self.desktop.attach_window(window)
+        window.resize.assert_called_once_with(1200, 800)
+        window.setPosition.assert_called_once_with(-100, 50)
+        window.showFullScreen.assert_called_once()
+        window.visibility.return_value = QWindow.Visibility.FullScreen
+        self.desktop.hideToTray()
+        self.desktop.showWindow()
+        self.assertEqual(window.showFullScreen.call_count, 2)
+        window.showNormal.assert_not_called()
+
+    def test_failed_window_save_keeps_previous_preferences(self) -> None:
+        original = self.desktop.windowStartup
+        with patch.object(self.settings, "set_window_startup", side_effect=OSError):
+            self.assertFalse(self.desktop.saveWindowStartup(True, 1200, 800, 0, 0))
+        self.assertEqual(self.desktop.windowStartup, original)
 
     def test_close_hides_and_tray_reopens_window(self) -> None:
         self.assertTrue(self.desktop.hideToTray())
