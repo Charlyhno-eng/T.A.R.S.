@@ -25,7 +25,7 @@ The app displays its name as “T.A.R.S.”, while the assistant uses “TARS”
 
 ## See T.A.R.S. in action
 
-![Interface](assets/tars-interface2.png)
+![Interface](assets/tars-interface3.png)
 
 ---
 
