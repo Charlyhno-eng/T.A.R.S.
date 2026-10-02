@@ -7,6 +7,7 @@ Column {
     property string sphereState: "idle"
     property string language: "en"
     property color accent: Theme.stateColor(sphereState)
+    property real textScale: 1
 
     spacing: 14
 
@@ -24,7 +25,7 @@ Column {
         color: root.accent
 
         font.family: Theme.fontFamily
-        font.pixelSize: 15
+        font.pixelSize: 15 * root.textScale
         font.bold: true
         font.letterSpacing: 4
     }

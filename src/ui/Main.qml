@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Window 2.15
+import QtQuick.Layouts 1.15
 import theme 1.0
 import "components"
 
@@ -10,7 +11,7 @@ ApplicationWindow {
     width: 1000
     height: 700
 
-    minimumWidth: 760
+    minimumWidth: 600
     minimumHeight: 560
 
     visible: false
@@ -18,6 +19,7 @@ ApplicationWindow {
 
     onClosing: function(close) {
         settingsDialog.close()
+        conversationDialog.close()
         if (desktop.hideToTray())
             close.accepted = false
     }
@@ -28,6 +30,12 @@ ApplicationWindow {
 
     property string assistantState:
         assistant.state
+
+    readonly property bool compact: width < 900 || height < 640
+    readonly property bool showConversation: width >= 960 && height >= 640
+    readonly property bool showReadiness: width >= 1450 && height >= 760
+    readonly property real textScale: Math.min(1.4, Math.max(0.9, Math.min(width / 1000, height / 700)))
+    readonly property real outerMargin: Math.min(40, Math.max(20, width * 0.025))
 
     background: FrostedBackground {
     }
@@ -83,36 +91,14 @@ ApplicationWindow {
         }
     }
 
-    Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: 122
-        text: assistant.language === "en" ? "YOUR LOCAL VOICE ASSISTANT" :
-                                             "VOTRE ASSISTANT VOCAL LOCAL"
-        color: Theme.textSecondary
-        font.family: Theme.fontFamily
-        font.pixelSize: 11
-        font.letterSpacing: 4
-    }
-
-    Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: 145
-        text: assistant.language === "en" ? "How can I help?" : "Comment puis-je aider ?"
-        color: Theme.textPrimary
-        font.family: Theme.fontFamily
-        font.pixelSize: 28
-        font.weight: Font.DemiBold
-    }
-
     TopBar {
         id: topBar
 
         anchors.top: parent.top
         anchors.left: parent.left
 
-        anchors.margins: 24
+        anchors.margins: window.outerMargin
+        width: Math.min(420, settingsButton.x - window.outerMargin - (clockDisplay.visible ? 120 : 20))
     }
 
     ToolButton {
@@ -180,6 +166,7 @@ ApplicationWindow {
     }
 
     Text {
+        id: clockDisplay
         anchors.top: parent.top
         anchors.right: settingsButton.left
 
@@ -187,7 +174,7 @@ ApplicationWindow {
         anchors.rightMargin: 16
 
         visible:
-            !assistant.modelsDownloading
+            window.width >= 760 && !assistant.modelsDownloading
 
         text: Qt.formatDateTime(
             clock.now,
@@ -223,187 +210,199 @@ ApplicationWindow {
         }
     }
 
+    RowLayout {
+        id: workspace
+        anchors.top: parent.top
+        anchors.bottom: footer.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.topMargin: window.compact ? 100 : 110
+        anchors.bottomMargin: 20
+        anchors.leftMargin: window.outerMargin
+        anchors.rightMargin: window.outerMargin
+        spacing: 28 * window.textScale
+
+        ReadinessPanel {
+            objectName: "readinessPanel"
+            visible: window.showReadiness
+            Layout.preferredWidth: Math.min(340, window.width * 0.2)
+            Layout.fillHeight: true
+            textScale: window.textScale
+            onSettingsRequested: settingsDialog.open()
+        }
+
+        Item {
+            id: robotColumn
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            Text {
+                id: tagline
+                anchors.top: parent.top
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                visible: !window.compact
+                text: assistant.language === "en" ? "YOUR LOCAL VOICE ASSISTANT" : "VOTRE ASSISTANT VOCAL LOCAL"
+                color: Theme.textSecondary
+                font.family: Theme.fontFamily
+                font.pixelSize: 11 * window.textScale
+                font.letterSpacing: 2
+                elide: Text.ElideRight
+            }
+            Text {
+                id: greeting
+                anchors.top: parent.top
+                anchors.topMargin: window.compact ? 0 : tagline.height + 14
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: assistant.language === "en" ? "How can I help?" : "Comment puis-je aider ?"
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: 28 * window.textScale
+                font.weight: Font.DemiBold
+                wrapMode: Text.WordWrap
+            }
+            Item {
+                id: centralItem
+                anchors.top: greeting.bottom
+                anchors.bottom: caption.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.topMargin: 14
+                anchors.bottomMargin: 14
+
+                JarvisSphere {
+                    id: sphere
+                    objectName: "assistantRobot"
+                    anchors.centerIn: parent
+                    width: Math.max(0, Math.min(parent.width, parent.height))
+                    height: width
+                    sphereState: window.assistantState
+                    animationsEnabled: window.active
+                    interactionEnabled: assistant.modelsReady && !assistant.modelsDownloading
+                    onPressed: assistant.startListening()
+                    onReleased: assistant.stopListening()
+                }
+            }
+            Text {
+                id: caption
+                anchors.bottom: downloadProgress.visible ? downloadProgress.top : parent.bottom
+                anchors.bottomMargin: downloadProgress.visible ? 14 : 0
+                width: parent.width
+                text: {
+                    var english = assistant.language === "en"
+                    if (assistant.modelsDownloading)
+                        return assistant.status
+                    if (assistant.modelsLoading)
+                        return english ? "LOADING LOCAL MODELS…" : "CHARGEMENT DES MODÈLES LOCAUX…"
+                    if (!assistant.modelsInstalled)
+                        return english ? "CLICK THE MODEL STATUS TO INSTALL VOICES" : "CLIQUEZ SUR LE STATUT POUR INSTALLER LES VOIX"
+                    if (!assistant.modelsReady)
+                        return assistant.status
+                    if (window.assistantState === "idle") {
+                        if (!window.showConversation && assistant.transcript)
+                            return assistant.transcript
+                        return english ? "HOLD T.A.R.S. TO SPEAK" : "MAINTENEZ T.A.R.S. POUR PARLER"
+                    }
+                    if (!window.showConversation && assistant.response)
+                        return "T.A.R.S.: " + assistant.response
+                    return assistant.status
+                }
+                color: Theme.textSecondary
+                font.family: Theme.fontFamily
+                font.pixelSize: 13 * window.textScale
+                font.letterSpacing: 0.6
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                maximumLineCount: 3
+                elide: Text.ElideRight
+            }
+            ProgressBar {
+                id: downloadProgress
+                anchors.bottom: parent.bottom
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(260, parent.width)
+                height: 4
+                visible: assistant.modelsDownloading
+                indeterminate: visible && window.active
+            }
+        }
+
+        ConversationPanel {
+            objectName: "conversationPanel"
+            visible: window.showConversation
+            Layout.preferredWidth: Math.min(480, window.width * 0.32)
+            Layout.fillHeight: true
+            textScale: window.textScale
+        }
+    }
+
     Item {
-        id: centralItem
-
-        anchors.centerIn: parent
-
-        width: Math.min(360, parent.height - 360)
-        height: width
-
-        JarvisSphere {
-            id: sphere
-
+        id: footer
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: window.outerMargin
+        width: parent.width
+        height: 42
+        Row {
             anchors.centerIn: parent
-            width: Math.min(340, parent.width)
-            height: width
-
-            sphereState:
-                window.assistantState
-
-            animationsEnabled: window.active
-            interactionEnabled: assistant.modelsReady && !assistant.modelsDownloading
-
-            onPressed: assistant.startListening()
-            onReleased: assistant.stopListening()
-        }
-    }
-
-    Text {
-        anchors.top:
-            centralItem.bottom
-
-        anchors.horizontalCenter:
-            parent.horizontalCenter
-
-        anchors.topMargin: 18
-
-        text: {
-            var english = assistant.language === "en"
-
-            if (assistant.modelsDownloading)
-                return assistant.status
-
-            if (assistant.modelsLoading)
-                return english
-                    ? "LOADING LOCAL MODELS..."
-                    : "CHARGEMENT DES MODÈLES LOCAUX..."
-
-            if (!assistant.modelsInstalled)
-                return english
-                    ? "DOWNLOAD THE LOCAL MODELS TO BEGIN"
-                    : "TÉLÉCHARGEZ LES MODÈLES LOCAUX POUR COMMENCER"
-
-            if (!assistant.modelsReady)
-                return assistant.status
-
-            if (window.assistantState === "idle") {
-                if (assistant.transcript)
-                    return assistant.transcript
-                return english
-                    ? "HOLD T.A.R.S. TO SPEAK"
-                    : "MAINTENEZ T.A.R.S. POUR PARLER"
+            spacing: 24 * window.textScale
+            StatusPanel {
+                id: statusPanel
+                anchors.verticalCenter: parent.verticalCenter
+                sphereState: window.assistantState
+                language: assistant.language
+                textScale: window.textScale
             }
-
-            if (window.assistantState === "speaking" && assistant.response)
-                return "T.A.R.S.: " + assistant.response
-
-            return assistant.status
-        }
-
-        color:
-            Theme.textSecondary
-
-        opacity: 0.8
-
-        font.family:
-            Theme.fontFamily
-
-        font.pixelSize: 12
-
-        font.letterSpacing: 1.2
-
-        width: Math.min(parent.width - 80, 620)
-        wrapMode: Text.WordWrap
-        maximumLineCount: 3
-        elide: Text.ElideRight
-
-        horizontalAlignment:
-            Text.AlignHCenter
-
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 400
+            SettingsButton {
+                visible: !window.compact
+                width: Math.min(300, window.width * 0.3)
+                text: !desktop.shortcutSupported
+                    ? (assistant.language === "en" ? "Voice settings" : "Paramètres vocaux")
+                    : (desktop.shortcut
+                        ? (assistant.language === "en" ? "Hold " : "Maintenez ") + desktop.shortcut
+                        : (assistant.language === "en" ? "Set a voice shortcut" : "Définir un raccourci vocal"))
+                onClicked: settingsDialog.open()
+                ToolTip.visible: hovered
+                ToolTip.text: assistant.language === "en"
+                    ? "Configure hold-to-talk in Settings to speak while T.A.R.S. is hidden."
+                    : "Configurez un raccourci dans les paramètres pour parler lorsque T.A.R.S. est masqué."
+            }
+            SettingsButton {
+                objectName: "openConversationButton"
+                visible: !window.showConversation
+                text: "Conversation"
+                onClicked: conversationDialog.open()
             }
         }
     }
 
-    Rectangle {
-        anchors.horizontalCenter:
-            parent.horizontalCenter
-
-        anchors.bottom:
-            statusPanel.top
-
-        anchors.bottomMargin: 18
-
-        width: 260
-        height: 3
-
-        radius: 1.5
-
-        color:
-            Theme.panelBorder
-
-        visible:
-            assistant.modelsDownloading
-
-        Rectangle {
-            id: loadingBar
-
-            height: parent.height
-
-            width:
-                parent.width * 0.25
-
-            radius:
-                parent.radius
-
-            color:
-                Theme.colorListening
-
-            SequentialAnimation on x {
-                loops:
-                    Animation.Infinite
-
-                running:
-                    assistant.modelsDownloading &&
-                    window.active
-
-                NumberAnimation {
-                    from: 0
-
-                    to:
-                        loadingBar.parent.width -
-                        loadingBar.width
-
-                    duration: 1100
-
-                    easing.type:
-                        Easing.InOutQuad
-                }
-
-                NumberAnimation {
-                    from:
-                        loadingBar.parent.width -
-                        loadingBar.width
-
-                    to: 0
-
-                    duration: 1100
-
-                    easing.type:
-                        Easing.InOutQuad
+    Dialog {
+        id: conversationDialog
+        objectName: "conversationDialog"
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 720)
+        height: Math.min(parent.height - 40, 760)
+        padding: 0
+        modal: true
+        background: Rectangle { color: Theme.panelBackground; radius: 18 }
+        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.68) }
+        header: Item {
+            height: 42
+            ToolButton {
+                anchors.right: parent.right
+                anchors.rightMargin: 12
+                text: "×"
+                Accessible.name: assistant.language === "en" ? "Close conversation" : "Fermer la conversation"
+                onClicked: conversationDialog.close()
+                contentItem: Text {
+                    text: "×"
+                    color: Theme.textPrimary
+                    font.pixelSize: 28
+                    horizontalAlignment: Text.AlignHCenter
                 }
             }
         }
-    }
-
-    StatusPanel {
-        id: statusPanel
-
-        anchors.bottom:
-            parent.bottom
-
-        anchors.horizontalCenter:
-            parent.horizontalCenter
-
-        anchors.bottomMargin: 40
-
-        sphereState:
-            window.assistantState
-
-        language: assistant.language
+        contentItem: ConversationPanel { textScale: window.textScale }
     }
 
     WindowResizeHandles {

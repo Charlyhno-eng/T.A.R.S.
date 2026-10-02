@@ -5,11 +5,12 @@ import theme 1.0
 Item {
     id: root
 
-    width: contentRow.width
+    implicitWidth: 350
     height: 46
 
     Row {
         id: contentRow
+        width: parent.width
 
         spacing: 14
 
@@ -31,6 +32,7 @@ Item {
         }
 
         Column {
+            width: parent.width - 54
             anchors.verticalCenter:
                 parent.verticalCenter
 
@@ -49,11 +51,12 @@ Item {
 
             Item {
                 id: systemStatus
-                width: statusRow.implicitWidth
+                width: parent.width
                 height: statusRow.implicitHeight
 
                 Row {
                     id: statusRow
+                    width: parent.width
                     spacing: 6
 
                     Rectangle {
@@ -69,6 +72,8 @@ Item {
                     }
 
                     Text {
+                        width: parent.width - 13
+                        elide: Text.ElideRight
                         text: assistant.modelsDownloading
                             ? (assistant.language === "en" ? "DOWNLOADING LOCAL MODELS" : "TÉLÉCHARGEMENT DES MODÈLES")
                             : (assistant.modelsLoading

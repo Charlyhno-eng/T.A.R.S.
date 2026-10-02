@@ -105,7 +105,7 @@ class Settings:
             if type(value) is not type(default):
                 raise ValueError("Invalid window preference type")
             if name != "fullscreen" and not (
-                {"width": 760, "height": 560, "x": -100000, "y": -100000}[name] <= value <= 100000
+                {"width": 600, "height": 560, "x": -100000, "y": -100000}[name] <= value <= 100000
             ):
                 raise ValueError("Invalid window dimensions or position")
 

@@ -93,9 +93,15 @@ class SettingsTests(unittest.TestCase):
                              dict(fullscreen=True, width=1200, height=800, x=-500, y=20))
             self.assertEqual(restarted.language(), "fr")
             self.assertEqual(restarted.shortcut(), "Ctrl+Alt+Space")
+            settings.set_window_startup(False, 600, 600, 0, 0)
+            compact_preferences = dict(fullscreen=False, width=600, height=600, x=0, y=0)
+            self.assertEqual(restarted.window_startup(),
+                             compact_preferences)
+            with self.assertRaises(ValueError):
+                settings.set_window_startup(False, 599, 600, 0, 0)
             with self.assertRaises(ValueError):
                 settings.set_window_startup(False, 100, 100, 0, 0)
-            self.assertTrue(settings.window_startup()["fullscreen"])
+            self.assertEqual(settings.window_startup(), compact_preferences)
 
     def test_invalid_window_config_uses_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

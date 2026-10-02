@@ -45,7 +45,7 @@ Column {
         TextField {
             id: widthField
             Layout.fillWidth: true
-            validator: IntValidator { bottom: 760; top: 100000 }
+            validator: IntValidator { bottom: 600; top: 100000 }
             selectByMouse: true
         }
         Text { text: root.english ? "Height (px)" : "Hauteur (px)"; color: Theme.textSecondary }
@@ -73,8 +73,8 @@ Column {
     Text {
         width: parent.width
         text: root.english
-            ? "X/Y position the window from the desktop's top-left corner. Minimum size: 760 × 560. Changes apply on the next launch."
-            : "X/Y placent la fenêtre depuis le coin supérieur gauche du bureau. Taille minimale : 760 × 560. Les changements s'appliquent au prochain lancement."
+            ? "X/Y position the window from the desktop's top-left corner. Minimum size: 600 × 560. Changes apply on the next launch."
+            : "X/Y placent la fenêtre depuis le coin supérieur gauche du bureau. Taille minimale : 600 × 560. Les changements s'appliquent au prochain lancement."
         wrapMode: Text.WordWrap
         color: Theme.textSecondary
         font.pixelSize: 12
