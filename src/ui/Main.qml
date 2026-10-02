@@ -115,53 +115,6 @@ ApplicationWindow {
         anchors.margins: 24
     }
 
-    Rectangle {
-        id: downloadStatus
-
-        anchors.top: modelDownloadButton.bottom
-        anchors.right: parent.right
-
-        anchors.topMargin: 10
-        anchors.rightMargin: 24
-
-        width: 300
-        height: 42
-
-        radius: 21
-
-        color: Qt.rgba(
-            0,
-            0,
-            0,
-            0.18
-        )
-
-        border.width: 1
-
-        border.color:
-            Theme.panelBorder
-
-        visible:
-            assistant.modelsDownloading
-
-        Text {
-            anchors.centerIn: parent
-
-            text:
-                assistant.status
-
-            color:
-                Theme.textSecondary
-
-            font.family:
-                Theme.fontFamily
-
-            font.pixelSize: 11
-
-            font.letterSpacing: 1
-        }
-    }
-
     ToolButton {
         id: closeButton
         objectName: "closeWindowButton"
@@ -192,61 +145,9 @@ ApplicationWindow {
     }
 
     Rectangle {
-        id: modelDownloadButton
-
-        anchors.top: parent.top
-        anchors.right: closeButton.left
-        anchors.topMargin: 20
-        anchors.rightMargin: 16
-
-        width: 42
-        height: 42
-        radius: 21
-        color: downloadMouse.containsMouse ? Theme.panelBorder : "transparent"
-        border.width: 1
-        border.color: assistant.modelsDownloading
-            ? Theme.colorListening : Theme.panelBorder
-
-        Text {
-            anchors.centerIn: parent
-            text: assistant.modelsDownloading ? "..." :
-                (assistant.modelsReady ? "✓" :
-                    (assistant.modelsInstalled ? "…" : "↓"))
-            color: assistant.modelsDownloading
-                ? Theme.colorListening : Theme.textPrimary
-            font.family: Theme.fontFamily
-            font.pixelSize: assistant.modelsDownloading ? 14 : 22
-            font.bold: true
-        }
-
-        MouseArea {
-            id: downloadMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: !assistant.modelsDownloading && !assistant.modelsInstalled
-            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: assistant.downloadModels()
-        }
-
-        ToolTip.visible: downloadMouse.containsMouse
-        ToolTip.delay: 500
-        ToolTip.text: assistant.modelsReady
-            ? (assistant.language === "en"
-                ? "Pocket TTS and Parakeet are ready"
-                : "Pocket TTS et Parakeet sont prêts")
-            : (assistant.modelsInstalled
-                ? (assistant.language === "en"
-                    ? "Loading Pocket TTS and Parakeet"
-                    : "Chargement de Pocket TTS et Parakeet")
-                : (assistant.language === "en"
-                    ? "Download Pocket TTS and Parakeet"
-                    : "Télécharger Pocket TTS et Parakeet"))
-    }
-
-    Rectangle {
         id: settingsButton
         anchors.top: parent.top
-        anchors.right: modelDownloadButton.left
+        anchors.right: closeButton.left
         anchors.topMargin: 20
         anchors.rightMargin: 16
         width: 42

@@ -57,7 +57,7 @@ Providers live in `src/providers/stt`, `src/providers/tts`, and `src/providers/l
 uv run python src/app.py
 ```
 
-On first launch, use the download button to install the local models. On later launches, T.A.R.S. loads both local models before the central robot head becomes available. Once loading finishes, hold the head while speaking, then release it to hear the GLM response. The central control shows an animated 3D robot head inspired by the app mascot. Its shell and expression flex as T.A.R.S. listens, processes speech, and speaks, while the surrounding glow changes color with the state.
+On first launch, click the model status beside the robot icon to install the local models. The status uses a bright theme accent while models download or load. On later launches, T.A.R.S. loads both local models before the central robot head becomes available. Once loading finishes, hold the head while speaking, then release it to hear the GLM response. The central control shows an animated 3D robot head inspired by the app mascot. Its shell and expression flex as T.A.R.S. listens, processes speech, and speaks, while the surrounding glow changes color with the state.
 
 The window keeps its original midnight-blue gradient with a semi-transparent background.
 Soft haze and fine grain simulate frosted glass while text and controls remain opaque.
