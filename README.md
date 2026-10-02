@@ -62,6 +62,9 @@ On first launch, use the download button to install the local models. On later l
 The window keeps its original midnight-blue gradient with a semi-transparent background.
 Soft haze and fine grain simulate frosted glass while text and controls remain opaque.
 Desktop transparency requires a compositor; the frost texture is simulated rather than a blur of the windows behind the app.
+Qt Quick can blur content rendered inside the app, but a live blur of other windows requires desktop compositor support, so no system-independent backdrop blur is applied.
+
+The window has no native title bar. Use the **×** in the upper-right corner to close it (hide to the tray when available, otherwise quit). Drag the upper area outside the controls to move the window, and drag its edges or corners to resize it in windowed mode. These gestures use Qt's system move/resize support and depend on the desktop platform. The close button is also available in full screen.
 
 ### Run the tests
 

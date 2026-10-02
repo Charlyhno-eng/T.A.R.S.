@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, Qt, Signal, QMetaObject, QUrl, QCoreApplication, QEvent
+from PySide6.QtCore import QObject, Qt, Signal, QMetaObject, QUrl, QCoreApplication, QEvent, QPointF
 from PySide6.QtGui import QKeySequence, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
@@ -244,6 +244,51 @@ class DesktopTests(unittest.TestCase):
             self.assertEqual(register.call_args_list[-1].args, ("Ctrl+Alt+Space",))
         self.assertEqual(self.desktop.shortcut, "Ctrl+Alt+Space")
         self.assertIn("Could not save", self.desktop.shortcutError)
+
+    def test_frameless_close_button_preserves_tray_and_fullscreen_behavior(self) -> None:
+        self.settings._key_path = Path(self.directory.name) / "llm_api_key"
+        with patch("core.assistant_controller.Settings", return_value=self.settings):
+            assistant = AssistantController()
+        from core.export_service import ExportService
+        exporter = ExportService()
+        engine = QQmlApplicationEngine()
+        ui_directory = Path(__file__).resolve().parents[1] / "src" / "ui"
+        engine.addImportPath(str(ui_directory))
+        for name, value in (("assistant", assistant), ("desktop", self.desktop),
+                            ("exporter", exporter)):
+            engine.rootContext().setContextProperty(name, value)
+        warnings = []
+        engine.warnings.connect(lambda errors: warnings.extend(str(error) for error in errors))
+        engine.load(QUrl.fromLocalFile(str(ui_directory / "Main.qml")))
+        try:
+            self.assertTrue(engine.rootObjects())
+            window = engine.rootObjects()[0]
+            self.desktop.attach_window(window)
+            self.assertTrue(window.flags() & Qt.FramelessWindowHint)
+            button = window.findChild(QObject, "closeWindowButton")
+            self.assertIsNotNone(button)
+
+            def click_close():
+                QTest.qWait(50)
+                point = button.mapToScene(QPointF(button.width() / 2, button.height() / 2))
+                QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, point.toPoint())
+                QTest.qWait(50)
+                self.assertFalse(window.isVisible())
+
+            window.showFullScreen()
+            click_close()
+            self.desktop.showWindow()
+            self.assertEqual(window.visibility(), QWindow.FullScreen)
+            self.assertFalse(self.app.quitOnLastWindowClosed())
+            window.showNormal()
+            self.tray.isSystemTrayAvailable.return_value = False
+            click_close()
+            self.assertTrue(self.app.quitOnLastWindowClosed())
+            self.assertEqual(warnings, [])
+        finally:
+            engine.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+            assistant.shutdown()
 
     def test_qml_capture_saves_keys_and_escape_restores_recording(self) -> None:
         self.settings._key_path = Path(self.directory.name) / "llm_api_key"

@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Window 2.15
 import theme 1.0
 import "components"
 
@@ -13,6 +14,7 @@ ApplicationWindow {
     minimumHeight: 560
 
     visible: false
+    flags: Qt.Window | Qt.FramelessWindowHint
 
     onClosing: function(close) {
         settingsDialog.close()
@@ -28,6 +30,14 @@ ApplicationWindow {
         assistant.state
 
     background: FrostedBackground {
+    }
+
+    MouseArea {
+        anchors.top: parent.top
+        width: parent.width
+        height: 84
+        enabled: window.visibility !== Window.FullScreen
+        onPressed: window.startSystemMove()
     }
 
     Canvas {
@@ -152,13 +162,42 @@ ApplicationWindow {
         }
     }
 
-    Rectangle {
-        id: modelDownloadButton
-
+    ToolButton {
+        id: closeButton
+        objectName: "closeWindowButton"
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.topMargin: 20
         anchors.rightMargin: 24
+        width: 42
+        height: 42
+        text: "×"
+        Accessible.name: assistant.language === "en" ? "Close window" : "Fermer la fenêtre"
+        onClicked: window.close()
+
+        contentItem: Text {
+            text: closeButton.text
+            color: Theme.textPrimary
+            font.pixelSize: 28
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+        background: Rectangle {
+            radius: 21
+            color: closeButton.hovered || closeButton.down ? Theme.panelBorder : "transparent"
+        }
+        ToolTip.visible: hovered
+        ToolTip.delay: 500
+        ToolTip.text: Accessible.name
+    }
+
+    Rectangle {
+        id: modelDownloadButton
+
+        anchors.top: parent.top
+        anchors.right: closeButton.left
+        anchors.topMargin: 20
+        anchors.rightMargin: 16
 
         width: 42
         height: 42
@@ -462,6 +501,13 @@ ApplicationWindow {
             window.assistantState
 
         language: assistant.language
+    }
+
+    WindowResizeHandles {
+        anchors.fill: parent
+        targetWindow: window
+        enabled: window.visibility === Window.Windowed
+        z: 10
     }
 
 }
