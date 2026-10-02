@@ -22,8 +22,7 @@ Rectangle {
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
 
-        function haze(ctx, x, y, radius, strength) {
-            var tint = Theme.textSecondary
+        function haze(ctx, x, y, radius, strength, tint) {
             var glow = ctx.createRadialGradient(x, y, 0, x, y, radius)
             glow.addColorStop(0, Qt.rgba(tint.r, tint.g, tint.b, strength))
             glow.addColorStop(0.45, Qt.rgba(tint.r, tint.g, tint.b, strength * 0.4))
@@ -40,8 +39,27 @@ Rectangle {
             ctx.reset()
 
             var spread = Math.max(width, height)
-            haze(ctx, width * 0.18, height * 0.12, spread * 0.65, 0.09)
-            haze(ctx, width * 0.85, height * 0.78, spread * 0.55, 0.07)
+            haze(ctx, width * 0.05, height * 0.15, spread * 0.65, 0.16, Theme.accentCyan)
+            haze(ctx, width * 0.95, height * 0.8, spread * 0.55, 0.14, Theme.accentMagenta)
+
+            // Short neon corner traces frame the glass without covering the controls.
+            var inset = 10
+            var length = 60
+            ctx.lineWidth = 2
+            ctx.strokeStyle = Qt.rgba(Theme.accentCyan.r, Theme.accentCyan.g,
+                                      Theme.accentCyan.b, 0.65)
+            ctx.beginPath()
+            ctx.moveTo(inset, inset + length)
+            ctx.lineTo(inset, inset)
+            ctx.lineTo(inset + length, inset)
+            ctx.stroke()
+            ctx.strokeStyle = Qt.rgba(Theme.accentMagenta.r, Theme.accentMagenta.g,
+                                      Theme.accentMagenta.b, 0.65)
+            ctx.beginPath()
+            ctx.moveTo(width - inset - length, height - inset)
+            ctx.lineTo(width - inset, height - inset)
+            ctx.lineTo(width - inset, height - inset - length)
+            ctx.stroke()
 
             // A fixed seed keeps repeated paints from flickering.
             var seed = 137

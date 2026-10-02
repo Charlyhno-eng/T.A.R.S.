@@ -6,14 +6,17 @@ QtObject {
     readonly property color backgroundBottom: "#0c1526"
 
     readonly property color panelBackground: "#0f1b2e"
-    readonly property color panelBorder: "#1c2f4a"
+    readonly property color panelBorder: "#294366"
 
     readonly property color textPrimary: "#e6f1ff"
-    readonly property color textSecondary: "#5d7ba3"
+    readonly property color textSecondary: "#8199bc"
 
-    readonly property color colorIdle: "#33c7ff"
+    readonly property color accentCyan: "#27e7ff"
+    readonly property color accentMagenta: "#ff4fc8"
+
+    readonly property color colorIdle: accentCyan
     readonly property color colorListening: "#33ffb0"
-    readonly property color colorThinking: "#b073ff"
+    readonly property color colorThinking: "#cf71ff"
     readonly property color colorSpeaking: "#ff9d47"
 
     readonly property string fontFamily: "Segoe UI"

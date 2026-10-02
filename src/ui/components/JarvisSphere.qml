@@ -97,13 +97,39 @@ Item {
             ctx.translate(0, -4 + breathe)
             ctx.transform(1, 0, bend / 230, 1, 0, 0)
 
-            // Diffuse light follows the head without changing the mascot's blue face.
-            var aura = ctx.createRadialGradient(0, 0, 35, 0, 0, 160)
-            aura.addColorStop(0, Qt.rgba(accent.r, accent.g, accent.b, 0.24))
-            aura.addColorStop(0.7, Qt.rgba(accent.r, accent.g, accent.b, 0.08))
+            // The halo peaks outside the shell so it stays visible through the glass.
+            var intensity = 0.9 + Math.sin(root.phase * 0.56) * 0.1
+            var aura = ctx.createRadialGradient(0, 0, 35, 0, 0, 165)
+            aura.addColorStop(0, Qt.rgba(accent.r, accent.g, accent.b, 0.32 * intensity))
+            aura.addColorStop(0.45, Qt.rgba(accent.r, accent.g, accent.b, 0.48 * intensity))
+            aura.addColorStop(0.72, Qt.rgba(accent.r, accent.g, accent.b, 0.28 * intensity))
+            aura.addColorStop(0.9, Qt.rgba(accent.r, accent.g, accent.b, 0.1 * intensity))
             aura.addColorStop(1, Qt.rgba(accent.r, accent.g, accent.b, 0))
             ctx.fillStyle = aura
             ctx.fillRect(-165, -165, 330, 330)
+
+            // Segmented neon rings keep the active state readable on bright desktops.
+            var rotation = root.phase * 0.08
+            for (var ring = 0; ring < 4; ring++) {
+                var start = rotation + ring * Math.PI / 2
+                ctx.beginPath()
+                ctx.arc(0, 0, 145, start, start + Math.PI * 0.32)
+                ctx.strokeStyle = Qt.rgba(accent.r, accent.g, accent.b, 0.12 * intensity)
+                ctx.lineWidth = 10
+                ctx.stroke()
+                ctx.strokeStyle = Qt.rgba(accent.r, accent.g, accent.b, 0.85 * intensity)
+                ctx.lineWidth = 1.8
+                ctx.stroke()
+            }
+            var magenta = Theme.accentMagenta
+            for (var trace = 0; trace < 2; trace++) {
+                ctx.beginPath()
+                var traceStart = -rotation + trace * Math.PI + 0.4
+                ctx.arc(0, 0, 156, traceStart, traceStart + 0.7)
+                ctx.strokeStyle = Qt.rgba(magenta.r, magenta.g, magenta.b, 0.6)
+                ctx.lineWidth = 1.4
+                ctx.stroke()
+            }
 
             var shadow = ctx.createRadialGradient(0, 111, 4, 0, 111, 119)
             shadow.addColorStop(0, Qt.rgba(0, 0, 0, 0.58))

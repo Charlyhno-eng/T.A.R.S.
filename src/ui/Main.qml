@@ -42,7 +42,7 @@ ApplicationWindow {
 
     Canvas {
         anchors.fill: parent
-        opacity: 0.018
+        opacity: 0.045
 
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
@@ -53,7 +53,7 @@ ApplicationWindow {
             ctx.reset()
 
             ctx.strokeStyle =
-                Theme.textPrimary
+                Theme.accentCyan
 
             ctx.lineWidth = 1
 
@@ -228,13 +228,15 @@ ApplicationWindow {
 
         anchors.centerIn: parent
 
-        width: 360
-        height: 360
+        width: Math.min(360, parent.height - 360)
+        height: width
 
         JarvisSphere {
             id: sphere
 
             anchors.centerIn: parent
+            width: Math.min(340, parent.width)
+            height: width
 
             sphereState:
                 window.assistantState

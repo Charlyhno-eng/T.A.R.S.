@@ -59,8 +59,8 @@ uv run python src/app.py
 
 On first launch, click the model status beside the robot icon to install the local models. The status uses a bright theme accent while models download or load. On later launches, T.A.R.S. loads both local models before the central robot head becomes available. Once loading finishes, hold the head while speaking, then release it to hear the GLM response. The central control shows an animated 3D robot head inspired by the app mascot. Its shell and expression flex as T.A.R.S. listens, processes speech, and speaks, while the surrounding glow changes color with the state.
 
-The window keeps its original midnight-blue gradient with a semi-transparent background.
-Soft haze and fine grain simulate frosted glass while text and controls remain opaque.
+The window combines a semi-transparent midnight-blue gradient with cyan and magenta cyberpunk accents, a subtle grid, and neon corner traces.
+Colored haze and fine grain simulate frosted glass while text and controls remain opaque. The robot has a brighter pulsing aura and slowly rotating segmented neon rings; its main glow still follows the assistant's state.
 Desktop transparency requires a compositor; the frost texture is simulated rather than a blur of the windows behind the app.
 Qt Quick can blur content rendered inside the app, but a live blur of other windows requires desktop compositor support, so no system-independent backdrop blur is applied.
 
