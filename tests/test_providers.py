@@ -10,17 +10,25 @@ from core.llm_service import LLMService
 from providers.llm.glm_5_3_flash import GLMProvider
 from providers.stt.adapter import STTAdapter
 from providers.tts.adapter import TTSAdapter
+from providers.tts.pocket_tts import PocketTTSProvider
 
 
 class ProviderTests(unittest.TestCase):
     def test_local_installation_remains_available_after_restart(self) -> None:
-        for adapter in (STTAdapter, TTSAdapter):
+        for adapter in (STTAdapter, TTSAdapter, PocketTTSProvider):
             with self.subTest(adapter=adapter), tempfile.TemporaryDirectory() as directory:
                 provider = adapter(data_directory=Path(directory))
 
                 def download_resources(*args, **kwargs) -> None:
                     if isinstance(provider, STTAdapter):
                         provider._model_path.touch()
+                    elif isinstance(provider, TTSAdapter):
+                        info = provider._language_info("en")
+                        for path, size in ((provider._model_path("en"), provider.MODEL_SIZE),
+                                           (provider._config_path("en"), info["config_size"])):
+                            path.parent.mkdir(parents=True, exist_ok=True)
+                            with path.open("wb") as resource:
+                                resource.truncate(size)
                     else:
                         for path in (
                             provider._model_path("en"), provider._tokenizer_path("en"),
@@ -44,13 +52,14 @@ class ProviderTests(unittest.TestCase):
                 load.assert_called_once()
 
     def test_failed_loading_does_not_mark_installation_complete(self) -> None:
-        for adapter in (STTAdapter, TTSAdapter):
+        for adapter in (STTAdapter, TTSAdapter, PocketTTSProvider):
             with self.subTest(adapter=adapter), tempfile.TemporaryDirectory() as directory:
                 provider = adapter(data_directory=Path(directory))
                 with (
                     patch.object(provider, "_download_resources"),
                     patch.object(provider, "load", side_effect=RuntimeError("load failed")),
                     patch("providers.tts.pocket_tts.logger.exception"),
+                    patch("providers.tts.piper_tts.logger.exception"),
                 ):
                     with self.assertRaisesRegex(RuntimeError, "load failed"):
                         provider.download()
@@ -58,7 +67,7 @@ class ProviderTests(unittest.TestCase):
                 self.assertFalse(provider.installed)
 
     def test_uninstalled_providers_cannot_initialize(self) -> None:
-        for adapter in (STTAdapter, TTSAdapter):
+        for adapter in (STTAdapter, TTSAdapter, PocketTTSProvider):
             with self.subTest(adapter=adapter), tempfile.TemporaryDirectory() as directory:
                 provider = adapter(data_directory=Path(directory))
                 with patch.object(provider, "load") as load:
@@ -67,17 +76,19 @@ class ProviderTests(unittest.TestCase):
                 load.assert_not_called()
 
     def test_voice_switch_releases_model_and_requires_language_resources(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            provider = TTSAdapter("en", data_directory=Path(directory))
-            provider._model = object()
-            provider._voice_state = object()
-            with self.assertRaises(ValueError):
-                provider.set_language("de")
-            self.assertTrue(provider.initialized)
-            provider.set_language("fr")
-            self.assertEqual(provider.language, "fr")
-            self.assertFalse(provider.initialized)
-            self.assertFalse(provider.installed)
+        for adapter in (TTSAdapter, PocketTTSProvider):
+            with self.subTest(adapter=adapter), tempfile.TemporaryDirectory() as directory:
+                provider = adapter("en", data_directory=Path(directory))
+                provider._model = object()
+                if isinstance(provider, PocketTTSProvider):
+                    provider._voice_state = object()
+                with self.assertRaises(ValueError):
+                    provider.set_language("de")
+                self.assertTrue(provider.initialized)
+                provider.set_language("fr")
+                self.assertEqual(provider.language, "fr")
+                self.assertFalse(provider.initialized)
+                self.assertFalse(provider.installed)
 
     def test_llm_service_routes_to_default_or_injected_provider(self) -> None:
         self.assertIsInstance(LLMService()._provider, GLMProvider)

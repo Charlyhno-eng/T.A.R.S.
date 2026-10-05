@@ -1,12 +1,15 @@
 [project]
 name = "tars"
 version = "0.1.0"
-description = "A local voice assistant built with PySide6, Parakeet, and Pocket TTS"
+description = "A local voice assistant built with PySide6, Parakeet, and Piper TTS"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "PySide6>=6.6",
     "pocket-tts",
+    "piper-tts>=1.4.2,<2",
+    # Later ONNX Runtime releases omit the macOS Intel wheels.
+    "onnxruntime>=1.23.2,<1.24",
     "scipy",
     "huggingface_hub",
     "PyYAML",

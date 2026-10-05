@@ -35,6 +35,7 @@ class AssistantController(QObject):
         "Moteur vocal non installé.": "Voice engine is not installed.",
         "Chargement de Parakeet sur CPU...": "Loading Parakeet on CPU...",
         "Installation locale de Pocket TTS...": "Installing Pocket TTS locally...",
+        "Installation locale de Piper TTS...": "Installing Piper TTS locally...",
         "Chargement local de Pocket TTS...": "Loading Pocket TTS locally...",
         "Téléchargez d'abord les modèles locaux.": "Download the local models first.",
         "Chargement des modèles locaux en cours...": "Local models are loading...",
@@ -56,11 +57,14 @@ class AssistantController(QObject):
         "Le moteur vocal n'est pas disponible.": "Voice engine is unavailable.",
         "Chargement du moteur vocal local...": "Loading local voice engine...",
         "Chargement du modèle Pocket TTS local...": "Loading local Pocket TTS model...",
+        "Chargement du modèle Piper TTS local...": "Loading local Piper TTS model...",
         "Préparation de la voix locale...": "Preparing local voice...",
         "Téléchargement du moteur vocal...": "Downloading voice engine...",
         "Téléchargement du modèle Pocket TTS...": "Downloading Pocket TTS model...",
         "Téléchargement du tokenizer Pocket TTS...": "Downloading Pocket TTS tokenizer...",
         "Téléchargement de la voix Pocket TTS...": "Downloading Pocket TTS voice...",
+        "Téléchargement du modèle Piper TTS...": "Downloading Piper TTS model...",
+        "Téléchargement de la configuration Piper TTS...": "Downloading Piper TTS configuration...",
         "Génération de la réponse vocale...": "Generating voice response...",
         "Erreur lors de la génération audio.": "Audio generation failed.",
         "Impossible de charger le moteur vocal local.": "Unable to load local voice engine.",
@@ -359,7 +363,7 @@ class AssistantController(QObject):
             return
         model = self._download_queue.pop(0)
         if model == "tts":
-            self._set_status("Installation locale de Pocket TTS...")
+            self._set_status("Installation locale de Piper TTS...")
             self._tts_service.download()
         elif model == "stt":
             self._set_status("Installation locale de Parakeet...")
@@ -444,11 +448,11 @@ class AssistantController(QObject):
         self._set_state("idle")
 
     def _on_tts_error(self, error: str) -> None:
-        logger.error("Erreur Pocket TTS : %s", error)
+        logger.error("Erreur TTS : %s", error)
         self._response_pending = False
         self._llm_service.cancel()
         self._tts_service.cancel_response()
-        prefix = "Pocket TTS error" if self._language == "en" else "Erreur Pocket TTS"
+        prefix = "TTS error" if self._language == "en" else "Erreur TTS"
         self._set_status(f"{prefix} : {error}")
         if self._state in ("thinking", "speaking"):
             self._set_state("idle")

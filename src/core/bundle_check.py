@@ -16,9 +16,11 @@ from core.global_shortcut import GlobalShortcut
 from core.paths import resource_directory
 from providers.stt.parakeet import ParakeetProvider
 from providers.tts.pocket_tts import PocketTTSProvider
+from providers.tts.adapter import TTSAdapter
+from providers.tts.provider import TTSProvider
 
 
-def _check_synthesis(provider: PocketTTSProvider, language: str, output: Path) -> None:
+def _check_synthesis(provider: TTSProvider, language: str, output: Path) -> None:
     """Exercise streaming inference and produce recorder-format audio for STT."""
     import numpy as np
     from scipy.io import wavfile
@@ -26,19 +28,20 @@ def _check_synthesis(provider: PocketTTSProvider, language: str, output: Path) -
     from math import gcd
 
     text = "Hello, this is TARS." if language == "en" else "Bonjour, je suis TARS."
+    name = type(provider).__name__
     chunks = list(provider.generate_stream(text, threading.Event()))
     if not chunks:
-        raise RuntimeError(f"Pocket TTS {language} produced no audio.")
+        raise RuntimeError(f"{name} {language} produced no audio.")
     rate = chunks[0][1]
     if rate <= 0 or any(chunk_rate != rate for _, chunk_rate in chunks):
-        raise RuntimeError(f"Pocket TTS {language} produced inconsistent sample rates.")
+        raise RuntimeError(f"{name} {language} produced inconsistent sample rates.")
     audio = np.frombuffer(b"".join(chunk for chunk, _ in chunks), dtype=np.float32)
     if not audio.size or not np.isfinite(audio).all() or not np.any(audio):
-        raise RuntimeError(f"Pocket TTS {language} produced invalid audio.")
+        raise RuntimeError(f"{name} {language} produced invalid audio.")
     divisor = gcd(rate, 16_000)
     audio = resample_poly(audio, 16_000 // divisor, rate // divisor)
     wavfile.write(output, 16_000, (np.clip(audio, -1, 1) * 32767).astype(np.int16))
-    print(f"Pocket TTS {language}: streaming synthesis passed", flush=True)
+    print(f"{name} {language}: streaming synthesis passed", flush=True)
 
 
 def check_bundle(load_models: bool = False, register_shortcut: bool = False) -> int:
@@ -85,18 +88,25 @@ def check_bundle(load_models: bool = False, register_shortcut: bool = False) -> 
         from pocket_tts import TTSModel
         if not callable(TTSModel.load_model):
             raise RuntimeError("Pocket TTS does not expose its model loader.")
+        from piper import PiperVoice
+        if not callable(PiperVoice.load):
+            raise RuntimeError("Piper TTS does not expose its model loader.")
         ParakeetProvider._import_nemo()
         for language in ("en", "fr"):
-            provider = PocketTTSProvider(language=language)
-            if load_models and provider.installed:
-                provider.load(language)
-                audio_path = Path(audio_directory.name) / f"{language}.wav"
-                _check_synthesis(provider, language, audio_path)
-                audio_files.append((language, audio_path))
-                provider.shutdown()
-                print(f"Pocket TTS {language}: loaded", flush=True)
-            elif load_models:
-                print(f"Pocket TTS {language}: not installed", flush=True)
+            for provider_type in (TTSAdapter, PocketTTSProvider):
+                provider = provider_type(language=language)
+                name = provider_type.__name__
+                if load_models and provider.installed:
+                    provider.load(language)
+                    audio_path = Path(audio_directory.name) / f"{name}-{language}.wav"
+                    _check_synthesis(provider, language, audio_path)
+                    audio_files.append((language, audio_path))
+                    provider.shutdown()
+                    print(f"{name} {language}: loaded", flush=True)
+                elif load_models:
+                    if provider_type is TTSAdapter:
+                        raise RuntimeError(f"Piper TTS {language} is not installed; download both voices before checking their loading.")
+                    print(f"{name} {language}: not installed", flush=True)
         if load_models:
             provider = ParakeetProvider()
             if not provider.installed:

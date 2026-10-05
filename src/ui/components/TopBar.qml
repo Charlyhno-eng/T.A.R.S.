@@ -103,8 +103,8 @@ Item {
                     ToolTip.visible: enabled && containsMouse
                     ToolTip.delay: 500
                     ToolTip.text: assistant.language === "en"
-                        ? "Download Pocket TTS and Parakeet"
-                        : "Télécharger Pocket TTS et Parakeet"
+                        ? "Download Piper TTS and Parakeet"
+                        : "Télécharger Piper TTS et Parakeet"
                 }
             }
         }

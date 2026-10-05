@@ -7,6 +7,7 @@ from queue import Queue
 from PySide6.QtCore import QObject, Signal, Slot
 
 from providers.tts.adapter import TTSAdapter
+from providers.tts.provider import TTSProvider
 from core.audio_playback import AudioPlayback
 
 
@@ -37,7 +38,7 @@ class TTSService(QObject):
     ) -> None:
         super().__init__(parent)
 
-        self._adapter = TTSAdapter(language=language)
+        self._adapter: TTSProvider = TTSAdapter(language=language)
 
         self._initialized = False
         self._initializing = False
@@ -327,7 +328,7 @@ class TTSService(QObject):
         if self._worker is not None:
             self._worker.join(timeout=5)
             if self._worker.is_alive():
-                logger.warning("Pocket TTS is still stopping; leaving resources to its worker.")
+                logger.warning("TTS is still stopping; leaving resources to its worker.")
                 return
         try:
             self._adapter.shutdown()

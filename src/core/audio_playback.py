@@ -95,7 +95,7 @@ class AudioPlayback(QObject):
             return
         self._input_finished = True
         if self._sink is None:
-            self._fail("Pocket TTS returned no audio.")
+            self._fail("TTS returned no audio.")
         else:
             self._pump()
 

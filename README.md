@@ -5,7 +5,7 @@
 ---
 
 T.A.R.S. is an extremely lightweight local voice assistant built with Python, PySide6, and QML.
-It uses Parakeet TDT 0.6B v3 for speech-to-text (STT), GLM 5.3 Flash for responses, and Pocket TTS for text-to-speech (TTS).
+It uses Parakeet TDT 0.6B v3 for speech-to-text (STT), GLM 5.3 Flash for responses, and Piper TTS by default for text-to-speech (TTS). Pocket TTS remains available in the code.
 
 STT and TTS run locally on the CPU. GLM requires an internet connection and a Z.AI API key.
 English is the default language, and Parakeet generally performs better in English than in French.
@@ -15,7 +15,7 @@ T.A.R.S. is not a finished product, but an accessible base for building a person
 The interface sends each transcription to GLM and speaks its response.
 By default, GLM gives a brief spoken reply to reduce response time; you can ask for more detail when needed.
 GLM uses low reasoning effort for conversation and streams its reply. T.A.R.S. starts synthesizing
-the first sentence (or a bounded phrase in a long sentence) while the rest arrives, and plays Pocket TTS
+the first sentence (or a bounded phrase in a long sentence) while the rest arrives, and plays Piper TTS
 audio as it is generated instead of waiting for a complete audio file. The response appears progressively;
 the assistant becomes available again after all speech has played. Actual latency still depends on
 your CPU, network connection, and GLM availability.
@@ -41,7 +41,7 @@ uv sync
 
 The project selects CPU-only PyTorch on Linux and Windows from the official
 PyTorch CPU index; macOS uses its native PyPI wheel. This avoids unused CUDA and
-Triton libraries while retaining both local voice engines.
+Triton libraries while retaining Parakeet, Piper TTS, and Pocket TTS.
 
 ### Configure GLM
 
@@ -50,6 +50,8 @@ Open the gear in the upper right to choose the application and voice language an
 In Settings, **Window at startup** lets you choose full screen or a window with a saved width, height and X/Y position in desktop pixels (negative coordinates support displays to the left or above the primary display). The minimum window size is 600 × 560; the default is 1000 × 700 at X=100, Y=100. Click **Save window settings** to persist the choice in `~/.tars/config/config.toml`; it applies on the next launch. Reopening from the tray preserves the full-screen mode of the hidden window. Desktop window managers may constrain placement, particularly on Wayland.
 
 Providers live in `src/providers/stt`, `src/providers/tts`, and `src/providers/llm`. GLM 5.3 Flash is implemented in `glm_5_3_flash.py`. Each `adapter.py` only selects the provider used by its service; local resource installation and voice selection belong to the STT/TTS providers. To switch models, implement a provider with the same `complete(text, language, history)` method and change the import in `src/providers/llm/adapter.py`. An optional `stream(text, language, history)` method can yield text fragments for earlier speech; providers with only `complete` still work. You can also pass a provider directly to `LLMService`. For an OpenAI-compatible chat endpoint, supply a different `LLMConfig` to `GLMProvider`; the GLM-specific reasoning option is only sent for the default model.
+
+Piper uses **Lessac medium** (`en_US-lessac-medium`) for English and **Siwis medium** (`fr_FR-siwis-medium`) for French. Click the model download control to install the selected voice (about 63 MB) in `~/.tars/tts/piper`; switch language in Settings and download again to install the other voice. Once installed, both voices load and synthesize offline on the CPU. Updating an existing Pocket TTS installation requires downloading Piper voices; existing Pocket files remain untouched. To use Pocket TTS again, change the import in `src/providers/tts/adapter.py` to `from providers.tts.pocket_tts import PocketTTSProvider as TTSAdapter`. Both providers implement the contract in `provider.py`, including mono float32 audio streaming. Piper's engine is GPL-3.0; voice licenses are documented in their [Lessac](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD) and [Siwis](https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD) model cards.
 
 ### Run
 
@@ -71,6 +73,12 @@ The window has no native title bar. Use the **×** in the upper-right corner to 
 
 ```bash
 uv run --project . --directory src python -m unittest discover -s ../tests
+```
+
+To also download temporary Piper voices and test real English/French WAV synthesis, streaming, offline reloading, cancellation, and Qt audio conversion:
+
+```bash
+TARS_TEST_PIPER=1 uv run --project . --directory src python -m unittest discover -s ../tests -p test_piper_tts.py -v
 ```
 
 ### Use T.A.R.S. from the system tray
@@ -104,7 +112,7 @@ You can also build from a terminal (Linux first). With the default output locati
 
 For Linux, the executable is `TARS` inside `dist/TARS-linux-*/TARS/`. The `*` represents the unique suffix created for each export. If you exported through Settings or used `--output`, look in the destination you selected; the same `TARS/TARS` bundle layout is used. Build on the target OS and CPU architecture; PyInstaller does not cross-compile between operating systems. On Linux, build on the oldest distribution you intend to support. Windows/macOS builds must be tested on those systems before distributing them.
 
-The export includes Python, Qt/QML, the robot icon, Parakeet/NeMo, Pocket TTS and their dependencies. **Distribute the entire `TARS` folder or `TARS.app`**, including its libraries; copying only the executable will not work. Exports use CPU-only PyTorch, omit PyTorch's native self-test payload, scan the interface's recursive QML imports (including Qt Quick Controls styles) to omit unrelated Qt modules, and strip Linux binary debug symbols. All application features remain included. Run `uv sync --group build` before rebuilding an older checkout. Each build clears PyInstaller's analysis cache and reports the complete bundle size; downloaded voice models remain outside it. Linux still needs compatible system display/audio libraries and a tray-enabled desktop. On macOS, allow microphone access when prompted; signing/notarization for distribution is a separate release step.
+The export includes Python, Qt/QML, the robot icon, Parakeet/NeMo, Piper TTS (including its phonemizer data), Pocket TTS and their dependencies. **Distribute the entire `TARS` folder or `TARS.app`**, including its libraries; copying only the executable will not work. Exports use CPU-only PyTorch, omit PyTorch's native self-test payload, scan the interface's recursive QML imports (including Qt Quick Controls styles) to omit unrelated Qt modules, and strip Linux binary debug symbols. All application features remain included. Run `uv sync --group build` before rebuilding an older checkout. Each build clears PyInstaller's analysis cache and reports the complete bundle size; downloaded voice models remain outside it. Linux still needs compatible system display/audio libraries and a tray-enabled desktop. On macOS, allow microphone access when prompted; signing/notarization for distribution is a separate release step.
 
 ### Install on Linux and clean up exports
 
@@ -126,4 +134,4 @@ To check a Linux bundle:
 /path/to/TARS/TARS --check-bundle --check-shortcut
 ```
 
-`--check-bundle` checks QML assets and voice-engine imports. Add `--check-models` to load installed voices, synthesize a short streaming sample in each installed language, and transcribe it with Parakeet, or `--check-shortcut` to check shortcut handling in X11. Test audio is temporary and is removed after the check. These checks do not download models or make API requests. Logs are written to `~/.tars/logs/tars.log`.
+`--check-bundle` checks QML assets and voice-engine imports. Add `--check-models` after installing both Piper voices and Parakeet to synthesize a short streaming sample in each language and transcribe it with Parakeet; installed Pocket voices are also checked. Add `--check-shortcut` to check shortcut handling in X11. Test audio is temporary and is removed after the check. These checks do not download models or make API requests. Logs are written to `~/.tars/logs/tars.log`.

@@ -4,7 +4,7 @@ T.A.R.S. is a lightweight personal voice assistant and a foundation for building
 
 ## Current capabilities
 
-- Hold the central robot control to record speech; local Parakeet TDT 0.6B v3 transcribes it, GLM 5.3 Flash (Z.AI API, low reasoning effort) streams a concise reply, and local Pocket TTS streams speech directly to Qt audio while the rest of the reply arrives.
+- Hold the central robot control to record speech; local Parakeet TDT 0.6B v3 transcribes it, GLM 5.3 Flash (Z.AI API, low reasoning effort) streams a concise reply, and local Piper TTS (default; Pocket TTS retained) streams speech directly to Qt audio while the rest of the reply arrives.
 - English (default) and French are supported. The selected language persists. STT/TTS resources can be installed from the interface and then run offline; GLM needs internet access and a Z.AI API key.
 - The frameless interface has a custom close button, a draggable upper area and resize edges, a semi-transparent midnight-blue background with simulated frosted glass and cyan/magenta neon accents, listening/processing/speaking states, an animated robot head with a bright state-colored aura, and settings for language, API key management, and saved startup full-screen mode or window dimensions and position.
 - The responsive layout supports windows from 600 × 560, scales the robot and text, and adds a latest-exchange panel, a shortcut reminder, and voice/API/language readiness details as space permits; compact windows open the exchange in a dialog.
