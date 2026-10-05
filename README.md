@@ -75,7 +75,7 @@ The window has no native title bar. Use the **×** in the upper-right corner to 
 uv run --project . --directory src python -m unittest discover -s ../tests
 ```
 
-To also download temporary Piper voices and test real English/French WAV synthesis, streaming, offline reloading, cancellation, and Qt audio conversion:
+To also download temporary Piper voices and test real English/French WAV synthesis (including French accents, apostrophes, and numbers), streaming, repeated offline language switching, cancellation, and the asynchronous Qt TTS service with a simulated audio output:
 
 ```bash
 TARS_TEST_PIPER=1 uv run --project . --directory src python -m unittest discover -s ../tests -p test_piper_tts.py -v

@@ -4,6 +4,7 @@ import hashlib
 import os
 import tempfile
 import threading
+import time
 import unittest
 import wave
 from copy import deepcopy
@@ -130,10 +131,66 @@ class PiperTests(unittest.TestCase):
 @unittest.skipUnless(os.environ.get("TARS_TEST_PIPER") == "1",
                      "Set TARS_TEST_PIPER=1 to download and synthesize real EN/FR voices")
 class RealPiperTests(unittest.TestCase):
-    def test_download_wav_stream_and_offline_restart_in_both_languages(self) -> None:
-        from core.audio_playback import AudioPlayback
+    def check_service_playback(self, provider: PiperTTSProvider, text: str) -> None:
+        """Exercise the real synthesis worker and Qt signals with a simulated speaker."""
+        from core.audio_playback import QtAudio
+        from core.tts_service import TTSService
+        from PySide6.QtCore import QCoreApplication
         from PySide6.QtMultimedia import QAudioFormat
 
+        audio_format = QAudioFormat()
+        audio_format.setSampleRate(48000)
+        audio_format.setChannelCount(2)
+        audio_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+        written = []
+        with patch("core.tts_service.TTSAdapter", return_value=provider), patch(
+            "core.audio_playback.QMediaDevices.defaultAudioOutput"
+        ) as output, patch("core.audio_playback.QAudioSink") as sink_class:
+            output.return_value.isNull.return_value = False
+            output.return_value.isFormatSupported.return_value = False
+            output.return_value.preferredFormat.return_value = audio_format
+            sink = sink_class.return_value
+            sink.format.return_value = audio_format
+            sink.state.return_value = QtAudio.State.IdleState
+            sink.bytesFree.return_value = 4800
+            sink.processedUSecs.return_value = 60_000_000
+
+            def write(pcm):
+                written.append(bytes(pcm))
+                return len(pcm)
+
+            sink.start.return_value.write.side_effect = write
+            service = TTSService(language=provider.language)
+            started, finished, errors = [], [], []
+            service.speechStarted.connect(lambda: started.append(True))
+            service.speechFinished.connect(lambda: finished.append(True))
+            service.errorOccurred.connect(errors.append)
+            try:
+                service._initialize_worker()
+                self.assertTrue(service.initialized)
+                service.begin_response()
+                service.speak(text)
+                service.finish_response()
+                deadline = time.monotonic() + 10
+                while not finished and not errors and time.monotonic() < deadline:
+                    QCoreApplication.processEvents()
+                    time.sleep(0.005)
+                self.assertEqual(errors, [])
+                self.assertEqual(started, [True])
+                self.assertEqual(finished, [True])
+                self.assertFalse(service._speaking)
+                pcm = b"".join(written)
+                self.assertGreater(len(pcm), 48000 * audio_format.bytesPerFrame())
+                self.assertTrue(np.any(np.frombuffer(pcm, dtype=np.int16)))
+            finally:
+                service.shutdown()
+
+    def test_download_wav_stream_and_offline_restart_in_both_languages(self) -> None:
+        from core.audio_playback import AudioPlayback
+        from PySide6.QtCore import QCoreApplication
+        from PySide6.QtMultimedia import QAudioFormat
+
+        app = QCoreApplication.instance() or QCoreApplication([])
         with tempfile.TemporaryDirectory(prefix="tars-piper-test-") as directory:
             root = Path(directory)
             provider = PiperTTSProvider(data_directory=root)
@@ -146,13 +203,22 @@ class RealPiperTests(unittest.TestCase):
                 "socket.create_connection", side_effect=AssertionError("offline")
             ):
                 provider = PiperTTSProvider(data_directory=root)
-                for language, text in (("en", "Hello, this is TARS. I can speak English."),
-                                       ("fr", "Bonjour, je suis TARS. Je parle français.")):
-                    with self.subTest(language=language):
+                samples = (
+                    ("en", "Hello, this is TARS. It's 8 o'clock, and I can speak English."),
+                    ("fr", "Bonjour, je suis TARS. À bientôt, l'été arrive et il est 8 heures."),
+                )
+                for index, (language, text) in enumerate(samples * 2):
+                    with self.subTest(language=language, switch=index):
                         provider.set_language(language)
+                        self.assertTrue(provider.installed)
                         provider.initialize()
+                        model = provider._model
+                        self.assertTrue(model.config.espeak_voice.lower().startswith(language))
+                        self.assertEqual(model.session.get_providers(), ["CPUExecutionProvider"])
+                        provider.initialize()
+                        self.assertIs(provider._model, model)
                         chunks = list(provider.generate_stream(text, threading.Event()))
-                        self.assertTrue(chunks)
+                        self.assertGreaterEqual(len(chunks), 2)
                         self.assertEqual({rate for _, rate in chunks}, {22050})
                         audio = np.frombuffer(b"".join(pcm for pcm, _ in chunks), dtype=np.float32)
                         self.assertGreater(audio.size, 22050)
@@ -176,8 +242,10 @@ class RealPiperTests(unittest.TestCase):
                         self.assertTrue(next(stream)[0])
                         stop.set()
                         self.assertEqual(list(stream), [])
-                        print(f"Piper {language}: download, offline WAV/stream and Qt PCM conversion passed", flush=True)
+                        self.check_service_playback(provider, text)
+                        print(f"Piper {language}: offline WAV/stream, language switch and Qt service playback passed", flush=True)
                 provider.shutdown()
+        app.processEvents()
 
 
 if __name__ == "__main__":
