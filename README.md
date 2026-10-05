@@ -2,134 +2,90 @@
 
 # T.A.R.S.
 
----
+T.A.R.S. is a local, extensible voice assistant built with Python 3.12, PySide6 and QML. It transcribes speech with Parakeet TDT 0.6B v3, streams concise replies from GLM 5.3 Flash, and speaks with **Piper TTS by default**. **Pocket TTS is also supported and included** as an alternative. STT and both TTS engines run locally on the CPU; GLM requires internet and a Z.AI API key. English is the default language and generally works better with Parakeet; French is also supported. Language and voice selection persist.
 
-T.A.R.S. is an extremely lightweight local voice assistant built with Python, PySide6, and QML.
-It uses Parakeet TDT 0.6B v3 for speech-to-text (STT), GLM 5.3 Flash for responses, and Piper TTS by default for text-to-speech (TTS). Pocket TTS remains available in the code.
+GLM normally replies in one or two short sentences, in the selected language. It streams text while T.A.R.S. displays the answer and starts speaking the first complete sentence; long sentences may start at a clause after 240 characters, with a word-boundary fallback at 400. Piper audio streams to Qt as it is synthesized. This keeps replies responsive while preserving phrase intonation. T.A.R.S. is an extensible foundation for a personal assistant; its displayed name is “T.A.R.S.” and its spoken name is “TARS.”
 
-STT and TTS run locally on the CPU. GLM requires an internet connection and a Z.AI API key.
-English is the default language, and Parakeet generally performs better in English than in French.
-French remains available in Settings. The selected application and voice language is saved for later launches.
+![T.A.R.S. interface](assets/tars-interface3.png)
 
-T.A.R.S. is not a finished product, but an accessible base for building a personal assistant.
-The interface sends each transcription to GLM and speaks its response.
-By default, GLM gives a brief spoken reply to reduce response time; you can ask for more detail when needed.
-GLM uses low reasoning effort for conversation and streams its reply. T.A.R.S. starts synthesizing
-the first sentence while the rest arrives, and plays Piper TTS
-audio as it is generated instead of waiting for a complete audio file. The response appears progressively;
-the assistant becomes available again after all speech has played. Actual latency still depends on
-your CPU, network connection, and GLM availability.
-Speech keeps sentences together for smoother intonation. Long sentences can start at a
-clause boundary after 240 characters, with a 400-character fallback at a word boundary;
-waiting for a complete phrase can slightly delay the start of speech.
-The app displays its name as “T.A.R.S.”, while the assistant uses “TARS” without periods in spoken responses.
+## Install and configure
 
----
-
-## See T.A.R.S. in action
-
-![Interface](assets/tars-interface3.png)
-
----
-
-## Quickstart
-
-### Install
-
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.12, then run:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.12, then install dependencies and launch:
 
 ```bash
 uv sync
-```
-
-The project selects CPU-only PyTorch on Linux and Windows from the official
-PyTorch CPU index; macOS uses its native PyPI wheel. This avoids unused CUDA and
-Triton libraries while retaining Parakeet, Piper TTS, and Pocket TTS.
-
-### Configure GLM
-
-Open the gear in the upper right to choose the application and voice language and enter your Z.AI API key. Save it there before using GLM. The key stays in the local `~/.tars/config/llm_api_key` file (user-only permissions on Linux/macOS). You can replace or remove it from the same dialog. The configured model is `glm-5.3-flash`.
-
-In Settings, **Window at startup** lets you choose full screen or a window with a saved width, height and X/Y position in desktop pixels (negative coordinates support displays to the left or above the primary display). The minimum window size is 600 × 560; the default is 1000 × 700 at X=100, Y=100. Click **Save window settings** to persist the choice in `~/.tars/config/config.toml`; it applies on the next launch. Reopening from the tray preserves the full-screen mode of the hidden window. Desktop window managers may constrain placement, particularly on Wayland.
-
-Providers live in `src/providers/stt`, `src/providers/tts`, and `src/providers/llm`. GLM 5.3 Flash is implemented in `glm_5_3_flash.py`. Each `adapter.py` only selects the provider used by its service; local resource installation and voice selection belong to the STT/TTS providers. To switch models, implement a provider with the same `complete(text, language, history)` method and change the import in `src/providers/llm/adapter.py`. An optional `stream(text, language, history)` method can yield text fragments for earlier speech; providers with only `complete` still work. You can also pass a provider directly to `LLMService`. For an OpenAI-compatible chat endpoint, supply a different `LLMConfig` to `GLMProvider`; the GLM-specific reasoning option is only sent for the default model.
-
-Piper uses **Lessac medium** (`en_US-lessac-medium`) for English and **Siwis medium** (`fr_FR-siwis-medium`) for French. Synthesis uses conversational speed, increased phoneme duration variation, and short punctuation pauses to soften the mechanical delivery. It preserves the model's volume dynamics with fixed gain instead of normalizing every sentence to full volume. These adjustments apply to both streaming and WAV output with existing voices; no new download is needed. In Settings, open **Local models** just below the language buttons and click **Download missing models** to install the selected voice (about 63 MB) in `~/.tars/tts/piper`; switch language in Settings and download again to install the other voice. Once installed, both voices load and synthesize offline on the CPU. Updating an existing Pocket TTS installation requires downloading Piper voices; existing Pocket files remain untouched. To use Pocket TTS again, change the import in `src/providers/tts/adapter.py` to `from providers.tts.pocket_tts import PocketTTSProvider as TTSAdapter`. Both providers implement the contract in `provider.py`, including mono float32 audio streaming. Piper's engine is GPL-3.0; voice licenses are documented in their [Lessac](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD) and [Siwis](https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD) model cards.
-
-### Run
-
-```bash
 uv run python src/app.py
 ```
 
-On first launch, open the gear, choose the language, and click **Download missing models** in **Local models**. This section shows the selected Piper voice and Parakeet installation states, approximate download sizes, and the current download/loading status. It installs only missing resources, keeps existing models, and lets you retry after a failure. The model status beside the robot icon also starts installation. The status uses a bright theme accent while models download or load. On later launches, T.A.R.S. loads both local models before the central robot head becomes available. Once loading finishes, hold the head while speaking, then release it to hear the GLM response. The central control shows an animated 3D robot head inspired by the app mascot. Its shell and expression flex as T.A.R.S. listens, processes speech, and speaks, while the surrounding glow changes color with the state.
+Linux and Windows use CPU-only PyTorch from its official CPU index; macOS uses its native PyPI wheel. Open Settings to choose English or French, enter and save your Z.AI API key, and click **Download missing models** under **Local models**. Downloads include about 2.5 GB for Parakeet and 63 MB for the selected Piper voice. Resources install on demand; the screen shows download and loading status and lets you retry failures. To install the other voice, change language and download again. Once installed, STT and TTS work offline. T.A.R.S. loads both local models at startup.
 
-The window combines a semi-transparent midnight-blue gradient with cyan and magenta cyberpunk accents, a subtle grid, and neon corner traces.
-Colored haze and fine grain simulate frosted glass while text and controls remain opaque. The robot has a brighter pulsing aura and slowly rotating segmented neon rings; its main glow still follows the assistant's state.
-The layout adapts to the available space: the robot and text scale with the window, and compact windows keep the main voice control with a **Conversation** button to read the latest transcript and reply in a scrollable dialog. From 960 × 640, the exchange appears in a side panel; from 1450 × 760, an additional panel shows local voice readiness, API key configuration, and the selected voice language. Larger layouts also show a shortcut reminder that opens Settings. These panels reflect the current session and do not store conversation history.
-Desktop transparency requires a compositor; the frost texture is simulated rather than a blur of the windows behind the app.
-Qt Quick can blur content rendered inside the app, but a live blur of other windows requires desktop compositor support, so no system-independent backdrop blur is applied.
+The key is stored separately at `~/.tars/config/llm_api_key` with user-only permissions on Linux/macOS; replace or remove it in Settings. Preferences are in `~/.tars/config/config.toml`; voice resources are in `~/.tars/{stt,tts}`. Set `TARS_DATA_DIR` to use another data root. Legacy settings in a checkout migrate once. GLM uses `glm-5.3-flash` with low reasoning effort.
 
-The window has no native title bar. Use the **×** in the upper-right corner to close it (hide to the tray when available, otherwise quit). Drag the upper area outside the controls to move the window, and drag its edges or corners to resize it in windowed mode. These gestures use Qt's system move/resize support and depend on the desktop platform. The close button is also available in full screen.
+## Voices and providers
 
-### Run the tests
+Piper uses Lessac medium (`en_US-lessac-medium`) for English and Siwis medium (`fr_FR-siwis-medium`) for French. Its conversational pacing, punctuation pauses and preserved volume dynamics apply to streaming and WAV output with installed voices. Piper's engine is GPL-3.0; see the [Lessac](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD) and [Siwis](https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD) voice licenses.
+
+Pocket TTS remains available in `src/providers/tts/pocket_tts.py`, and its engine is included in application exports. To select it instead of default Piper, change the import in `src/providers/tts/adapter.py` to:
+
+```python
+from providers.tts.pocket_tts import PocketTTSProvider as TTSAdapter
+```
+
+An existing Pocket TTS installation does not need to be removed; download Piper voices to use the default engine. Providers under `src/providers/{stt,tts,llm}` implement their service contracts, and `adapter.py` selects the active provider. To add an LLM, implement `complete(text, language, history)` and optionally `stream(text, language, history)`, then select it in `src/providers/llm/adapter.py`. `LLMService` also accepts an injected provider. `GLMProvider` accepts another OpenAI-compatible `LLMConfig`; its GLM-specific reasoning option is sent only for the default model.
+
+## Use the interface
+
+Hold the central robot head while speaking, then release it to send the transcription to GLM. The assistant becomes available again after its reply finishes playing. The frameless, resizable window has a custom close button and draggable upper area. Its semi-transparent midnight-blue background combines cyan/magenta accents, a grid and neon corners; colored haze and grain simulate frosted glass, while transparency requires a compositor. The 3D robot head flexes and glows with the listening, processing and speaking states.
+
+The minimum window is 600 × 560; the default is 1000 × 700 at X=100, Y=100. In Settings, save full-screen startup or a window size and desktop-pixel position for the next launch; negative coordinates support displays above or left of the primary one. Placement may be constrained by the window manager, especially on Wayland. Closing with **×** hides T.A.R.S. to the tray when available, otherwise it quits. Reopening from the tray preserves full-screen mode.
+
+The responsive layout scales the head and text. Below 960 × 640, **Conversation** opens the latest exchange in a scrollable dialog; at 960 × 640 it appears in a side panel, and at 1450 × 760 the interface can also show voice, API and language readiness plus a shortcut reminder that opens Settings. The panels show current-session status, not conversation history.
+
+## Global shortcut and tray
+
+On Linux X11 (including Mint XFCE), Windows and macOS, configure **Set shortcut…** in Settings and save a key combination. Hold it to talk while T.A.R.S. is hidden; release it to submit. Use Ctrl, Alt or Super with a key (for example, Ctrl+Alt+Space), or a function key. On macOS, Qt's Ctrl modifier represents Command. The shortcut is saved in `~/.tars/config/config.toml`; conflicts are rejected and **Remove** disables it. Shortcuts are unavailable on Linux Wayland. T.A.R.S. ignores the shortcut while models load or a request is processing, and key repeat does not submit twice.
+
+Click the tray robot or choose **Open T.A.R.S.** to reopen the window; choose **Quit** to exit. Without a system tray, closing quits. Linux uses X11 and `python-xlib`; Windows and macOS use native registration.
+
+## Tests
+
+Run the standard suite:
 
 ```bash
 uv run --project . --directory src python -m unittest discover -s ../tests
 ```
 
-To also download temporary Piper voices and test real English/French WAV synthesis (including French accents, apostrophes, and numbers), streaming, repeated offline language switching, cancellation, and the asynchronous Qt TTS service with a simulated audio output:
+For real Piper downloads and English/French synthesis tests—including WAV, streaming, language switching, cancellation and simulated Qt playback—run:
 
 ```bash
 TARS_TEST_PIPER=1 uv run --project . --directory src python -m unittest discover -s ../tests -p test_piper_tts.py -v
 ```
 
-### Use T.A.R.S. from the system tray
+This optional test downloads temporary voices. It covers French accents, apostrophes and numbers.
 
-On Linux Mint XFCE with an X11 session, Windows, or macOS, launch T.A.R.S. once, install the models, and save your API key. In Settings, click **Set shortcut…**, press your chosen key combination, and click **Save shortcut**. Use Ctrl, Alt, or Super with a key (for example, Ctrl+Alt+Space), or a function key. On macOS, Qt's portable Ctrl modifier represents Command. The shortcut is saved in `~/.tars/config/config.toml` and restored on later launches. Conflicting shortcuts are rejected; choose a different combination if another application or the desktop already uses it. **Remove** disables the shortcut.
+## Export an application
 
-Closing the window keeps T.A.R.S. running behind the robot icon in the system tray. From any application, hold your shortcut while speaking, then release it to send your request and hear the answer. T.A.R.S. must have finished loading its models; shortcuts are ignored while it is processing or speaking. The recording stops when you release the main key. Keyboard auto-repeat does not submit extra requests.
+Build on the target OS and CPU architecture; PyInstaller does not cross-compile. Settings can export a native bundle asynchronously (Linux is listed first and your OS is selected by default); it creates a new destination folder or copies an existing bundle. The Linux path is tested; test Windows/macOS builds on those platforms before distributing them.
 
-Click the robot icon or choose **Open T.A.R.S.** from its menu to reopen the window. Choose **Quit** from that menu to stop the application completely. If the desktop has no system tray, closing the window quits normally; enable the XFCE panel's tray to keep T.A.R.S. in the background. On Linux, global shortcuts require X11 and are unavailable under Wayland. Windows and macOS use native shortcut registration. Run `uv sync` after updating to install the dependencies.
+Install build tools with `uv sync --group build`, then use the UI or run:
 
-## Export an executable
-
-Install build tools and relaunch the source application:
-
-```bash
-uv sync --group build
-uv run --group build python src/app.py
-```
-
-In Settings, choose **Export application…**. Linux appears first, followed by Windows and macOS; your current OS is selected automatically. Select **Export…** and choose a destination. The interface stays responsive and shows the build log. The destination opens after a successful export. Each export creates a new folder, preserving earlier exports. From an already exported application, this button copies its complete bundle.
-
-The Linux export is the only build tested so far. Windows and macOS build paths are provided but have not been tested.
-
-You can also build from a terminal (Linux first). With the default output location, find the executable inside the newest matching folder under `dist`:
-
-| Build on | Command | Launch the result |
+| Platform | Build command | Executable |
 | --- | --- | --- |
 | Linux | `uv run --group build python scripts/build_app.py --platform linux` | `dist/TARS-linux-*/TARS/TARS` |
 | Windows | `uv run --group build python scripts/build_app.py --platform windows` | `dist/TARS-windows-*/TARS/TARS.exe` |
 | macOS | `uv run --group build python scripts/build_app.py --platform macos` | `dist/TARS-macos-*/TARS.app` |
 
-For Linux, the executable is `TARS` inside `dist/TARS-linux-*/TARS/`. The `*` represents the unique suffix created for each export. If you exported through Settings or used `--output`, look in the destination you selected; the same `TARS/TARS` bundle layout is used. Build on the target OS and CPU architecture; PyInstaller does not cross-compile between operating systems. On Linux, build on the oldest distribution you intend to support. Windows/macOS builds must be tested on those systems before distributing them.
+Builds include Python, Qt/QML, the mascot, Parakeet/NeMo, Piper with phonemizer data, Pocket TTS and dependencies. Distribute the complete `TARS` folder or `TARS.app`, not only the executable. Exports use CPU-only PyTorch, scan recursive QML imports, omit unrelated Qt modules and PyTorch's self-test payload, clear PyInstaller's analysis cache, and strip Linux debug symbols. Voice models and personal settings stay outside the bundle. Build Linux on the oldest distribution to support; its system still needs compatible display/audio libraries and a tray for background operation. macOS may ask for microphone access; signing and notarization are separate distribution steps.
 
-The export includes Python, Qt/QML, the robot icon, Parakeet/NeMo, Piper TTS (including its phonemizer data), Pocket TTS and their dependencies. **Distribute the entire `TARS` folder or `TARS.app`**, including its libraries; copying only the executable will not work. Exports use CPU-only PyTorch, omit PyTorch's native self-test payload, scan the interface's recursive QML imports (including Qt Quick Controls styles) to omit unrelated Qt modules, and strip Linux binary debug symbols. All application features remain included. Run `uv sync --group build` before rebuilding an older checkout. Each build clears PyInstaller's analysis cache and reports the complete bundle size; downloaded voice models remain outside it. Linux still needs compatible system display/audio libraries and a tray-enabled desktop. On macOS, allow microphone access when prompted; signing/notarization for distribution is a separate release step.
-
-### Install on Linux and clean up exports
-
-After building, close any running exported TARS application and run:
+After a Linux build, close exported T.A.R.S. and install the latest bundle into `~/.local/lib/tars`, adding an application-menu launcher:
 
 ```bash
 uv run python scripts/install_linux.py --clean-dist
 ```
 
-This installs the latest bundle in `~/.local/lib/tars` and adds it to the desktop application menu. Launch it from the menu or run `~/.local/lib/tars/TARS`. `--clean-dist` also removes older Linux exports from `dist`. Omit it to keep them. To install a bundle from elsewhere, pass its folder: `uv run python scripts/install_linux.py /path/to/TARS`.
+`--clean-dist` removes older Linux exports from `dist`; omit it to keep them. Install another bundle with `uv run python scripts/install_linux.py /path/to/TARS`. Launch from the menu or `~/.local/lib/tars/TARS`. To uninstall, remove `~/.local/lib/tars` and its `tars.desktop` launcher; remove `~/.tars` separately to delete personal data.
 
-Settings, API keys and downloaded models stay in `~/.tars`, outside the bundle. To uninstall, remove `~/.local/lib/tars` and the `tars.desktop` launcher; remove `~/.tars` separately to delete personal data. On another computer, set up the API key and shortcut, then download voice resources in the app. STT/TTS work offline; GLM requires internet. Set `TARS_DATA_DIR` to use a different data folder.
-
-To check a Linux bundle:
+Check an exported Linux bundle with:
 
 ```bash
 /path/to/TARS/TARS --check-bundle
@@ -137,4 +93,4 @@ To check a Linux bundle:
 /path/to/TARS/TARS --check-bundle --check-shortcut
 ```
 
-`--check-bundle` checks QML assets and voice-engine imports. Add `--check-models` after installing both Piper voices and Parakeet to synthesize a short streaming sample in each language and transcribe it with Parakeet; installed Pocket voices are also checked. Add `--check-shortcut` to check shortcut handling in X11. Test audio is temporary and is removed after the check. These checks do not download models or make API requests. Logs are written to `~/.tars/logs/tars.log`.
+The first checks QML assets and voice imports. `--check-models` also synthesizes Piper samples in both languages and transcribes with Parakeet; installed Pocket voices are checked too. `--check-shortcut` tests X11 handling. These checks neither download models nor call APIs; temporary audio is removed. Logs are in `~/.tars/logs/tars.log`.
