@@ -294,15 +294,15 @@ ApplicationWindow {
                     if (assistant.modelsDownloading)
                         return assistant.status
                     if (assistant.modelsLoading)
-                        return english ? "LOADING LOCAL MODELS…" : "CHARGEMENT DES MODÈLES LOCAUX…"
+                        return english ? "Preparing your local voice models…" : "Préparation de vos modèles vocaux locaux…"
                     if (!assistant.modelsInstalled)
-                        return english ? "CLICK THE MODEL STATUS TO INSTALL VOICES" : "CLIQUEZ SUR LE STATUT POUR INSTALLER LES VOIX"
+                        return english ? "Click the model status to install voices" : "Cliquez sur le statut des modèles pour installer les voix"
                     if (!assistant.modelsReady)
                         return assistant.status
                     if (window.assistantState === "idle") {
                         if (!window.showConversation && assistant.transcript)
                             return assistant.transcript
-                        return english ? "HOLD T.A.R.S. TO SPEAK" : "MAINTENEZ T.A.R.S. POUR PARLER"
+                        return english ? "Hold T.A.R.S. to speak" : "Maintenez T.A.R.S. pour parler"
                     }
                     if (!window.showConversation && assistant.response)
                         return "T.A.R.S.: " + assistant.response
@@ -311,7 +311,7 @@ ApplicationWindow {
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
                 font.pixelSize: 13 * window.textScale
-                font.letterSpacing: 0.6
+                font.letterSpacing: 0.2
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 maximumLineCount: 3
@@ -337,30 +337,96 @@ ApplicationWindow {
         }
     }
 
-    Item {
+    Rectangle {
         id: footer
         anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottomMargin: window.outerMargin
-        width: parent.width
-        height: 42
-        Row {
-            anchors.centerIn: parent
-            spacing: 24 * window.textScale
+        width: Math.min(parent.width - 2 * window.outerMargin, footerContent.implicitWidth + 32)
+        height: 64 * window.textScale
+        radius: 16
+        color: Qt.rgba(0.06, 0.10, 0.17, 0.92)
+        border.color: Qt.rgba(0.51, 0.60, 0.74, 0.18)
+
+        RowLayout {
+            id: footerContent
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: 10
+            anchors.bottomMargin: 10
+            spacing: 16 * window.textScale
             StatusPanel {
                 id: statusPanel
-                anchors.verticalCenter: parent.verticalCenter
+                Layout.alignment: Qt.AlignVCenter
                 sphereState: window.assistantState
                 language: assistant.language
                 textScale: window.textScale
+                label: assistant.modelsDownloading
+                    ? (language === "en" ? "INSTALLING" : "INSTALLATION")
+                    : assistant.modelsLoading
+                        ? (language === "en" ? "WARMING UP" : "PRÉPARATION")
+                        : !assistant.modelsReady
+                            ? (language === "en" ? "SETUP NEEDED" : "À CONFIGURER")
+                            : Theme.stateLabel(sphereState, language)
+                accent: assistant.modelsReady ? Theme.stateColor(sphereState) : Theme.textSecondary
             }
-            SettingsButton {
+
+            Rectangle {
                 visible: !window.compact
-                width: Math.min(300, window.width * 0.3)
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: 24
+                color: Theme.panelBorder
+            }
+
+            Button {
+                id: shortcutButton
+                visible: !window.compact
+                Layout.preferredWidth: shortcutContent.implicitWidth + 20
+                Layout.fillWidth: true
+                implicitHeight: 36 * window.textScale
                 text: !desktop.shortcutSupported
                     ? (assistant.language === "en" ? "Voice settings" : "Paramètres vocaux")
                     : (desktop.shortcut
-                        ? (assistant.language === "en" ? "Hold " : "Maintenez ") + desktop.shortcut
+                        ? (assistant.language === "en" ? "Hold to speak" : "Maintenez pour parler")
                         : (assistant.language === "en" ? "Set a voice shortcut" : "Définir un raccourci vocal"))
+                Accessible.name: text + (desktop.shortcutSupported && desktop.shortcut ? " " + desktop.shortcut : "")
+                contentItem: RowLayout {
+                    id: shortcutContent
+                    spacing: 12
+                    Text {
+                        Layout.fillWidth: true
+                        text: shortcutButton.text
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12 * window.textScale
+                        elide: Text.ElideRight
+                    }
+                    Rectangle {
+                        visible: desktop.shortcutSupported && !!desktop.shortcut
+                        implicitWidth: shortcutKey.implicitWidth + 18
+                        implicitHeight: 28 * window.textScale
+                        radius: 6
+                        color: Qt.rgba(0.51, 0.60, 0.74, 0.10)
+                        border.color: Theme.panelBorder
+                        Text {
+                            id: shortcutKey
+                            anchors.centerIn: parent
+                            text: desktop.shortcut
+                            color: Theme.textPrimary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11 * window.textScale
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
+                background: Rectangle {
+                    radius: 8
+                    color: shortcutButton.down ? Theme.panelBorder
+                        : shortcutButton.hovered ? Qt.rgba(0.51, 0.60, 0.74, 0.08) : "transparent"
+                    border.width: shortcutButton.activeFocus ? 1 : 0
+                    border.color: Theme.accentCyan
+                }
                 onClicked: settingsDialog.open()
                 ToolTip.visible: hovered
                 ToolTip.text: assistant.language === "en"
