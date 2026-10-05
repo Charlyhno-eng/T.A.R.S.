@@ -340,9 +340,11 @@ ApplicationWindow {
     Rectangle {
         id: footer
         anchors.bottom: parent.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottomMargin: window.outerMargin
         width: Math.min(parent.width - 2 * window.outerMargin, footerContent.implicitWidth + 32)
+        x: Math.max(window.outerMargin, Math.min(
+            parent.width - window.outerMargin - width,
+            workspace.x + robotColumn.x + (robotColumn.width - width) / 2))
         height: 64 * window.textScale
         radius: 16
         color: Qt.rgba(0.06, 0.10, 0.17, 0.92)
