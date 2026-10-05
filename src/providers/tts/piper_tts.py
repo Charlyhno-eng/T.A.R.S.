@@ -18,6 +18,14 @@ logger = logging.getLogger("TARS.PiperTTS")
 class PiperTTSProvider:
     """Local CPU synthesis with separate downloadable French and English voices."""
 
+    # A little more phoneme and duration variation softens Piper's default,
+    # highly even delivery while keeping the voice clear and intelligible.
+    SYNTHESIS_SETTINGS = {
+        "length_scale": 1.04,
+        "noise_scale": 0.8,
+        "noise_w_scale": 0.95,
+    }
+
     PUBLIC_REPOSITORY = "rhasspy/piper-voices"
     VOICES_REVISION = "c10ece1aade47bb51c153c893d14e5bf8e5b7117"
     MODEL_SIZE = 63201294
@@ -153,9 +161,14 @@ class PiperTTSProvider:
         """Write a standard PCM WAV file using the loaded local voice."""
         if self._model is None:
             raise RuntimeError("Piper TTS n'est pas initialisé.")
+        from piper import SynthesisConfig
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with wave.open(str(output_path), "wb") as wav_file:
-            self._model.synthesize_wav(text.strip(), wav_file)
+            self._model.synthesize_wav(
+                text.strip(), wav_file,
+                syn_config=SynthesisConfig(**self.SYNTHESIS_SETTINGS),
+            )
         return output_path
 
     def generate_stream(self, text: str, stop: threading.Event) -> Iterator[tuple[bytes, int]]:
@@ -164,7 +177,10 @@ class PiperTTSProvider:
             raise RuntimeError("Piper TTS n'est pas initialisé.")
         if stop.is_set() or not text.strip():
             return
-        for chunk in self._model.synthesize(text.strip()):
+        from piper import SynthesisConfig
+
+        syn_config = SynthesisConfig(**self.SYNTHESIS_SETTINGS)
+        for chunk in self._model.synthesize(text.strip(), syn_config=syn_config):
             if stop.is_set():
                 break
             if chunk.sample_channels != 1:

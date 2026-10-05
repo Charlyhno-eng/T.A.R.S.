@@ -105,7 +105,7 @@ class PiperTests(unittest.TestCase):
         chunk = SimpleNamespace(sample_channels=1, sample_rate=22050, audio_float_array=audio)
         produced = []
 
-        def synthesize(text):
+        def synthesize(text, syn_config=None):
             produced.append(text)
             yield chunk
             produced.append("second inference")
@@ -113,8 +113,12 @@ class PiperTests(unittest.TestCase):
 
         model.synthesize.side_effect = synthesize
         stop = threading.Event()
-        stream = self.provider.generate_stream("  Bonjour.  ", stop)
-        pcm, rate = next(stream)
+        synthesis_config = SimpleNamespace()
+        with patch("piper.SynthesisConfig", return_value=synthesis_config) as config:
+            stream = self.provider.generate_stream("  Bonjour.  ", stop)
+            pcm, rate = next(stream)
+        config.assert_called_once_with(**PiperTTSProvider.SYNTHESIS_SETTINGS)
+        self.assertIs(model.synthesize.call_args.kwargs["syn_config"], synthesis_config)
         np.testing.assert_array_equal(np.frombuffer(pcm, dtype=np.float32), audio)
         self.assertEqual(rate, 22050)
         stop.set()
