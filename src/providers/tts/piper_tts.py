@@ -18,13 +18,18 @@ logger = logging.getLogger("TARS.PiperTTS")
 class PiperTTSProvider:
     """Local CPU synthesis with separate downloadable French and English voices."""
 
-    # A little more phoneme and duration variation softens Piper's default,
-    # highly even delivery while keeping the voice clear and intelligible.
+    # Keep the voice's trained timbre and conversational speed, with more
+    # duration variation. Fixed gain preserves dynamics between sentences;
+    # Piper's per-sentence peak normalization otherwise makes each equally loud.
     SYNTHESIS_SETTINGS = {
-        "length_scale": 1.04,
-        "noise_scale": 0.8,
-        "noise_w_scale": 0.95,
+        "length_scale": 1.0,
+        "noise_scale": 0.667,
+        "noise_w_scale": 1.0,
+        "normalize_audio": False,
+        "volume": 1.25,
     }
+    PUNCTUATION_PAUSES = {".": 0.24, "?": 0.30, "!": 0.20,
+                          ";": 0.14, ":": 0.14, ",": 0.08}
 
     PUBLIC_REPOSITORY = "rhasspy/piper-voices"
     VOICES_REVISION = "c10ece1aade47bb51c153c893d14e5bf8e5b7117"
@@ -158,17 +163,19 @@ class PiperTTSProvider:
             on_status("Moteur vocal prêt.")
 
     def generate(self, text: str, output_path: Path) -> Path:
-        """Write a standard PCM WAV file using the loaded local voice."""
+        """Write the same phrasing and dynamics as streaming to a PCM WAV."""
         if self._model is None:
             raise RuntimeError("Piper TTS n'est pas initialisé.")
-        from piper import SynthesisConfig
+        import numpy as np
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with wave.open(str(output_path), "wb") as wav_file:
-            self._model.synthesize_wav(
-                text.strip(), wav_file,
-                syn_config=SynthesisConfig(**self.SYNTHESIS_SETTINGS),
-            )
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(self._model.config.sample_rate)
+            for pcm, _ in self.generate_stream(text, threading.Event()):
+                audio = np.frombuffer(pcm, dtype=np.float32)
+                wav_file.writeframes((np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16).tobytes())
         return output_path
 
     def generate_stream(self, text: str, stop: threading.Event) -> Iterator[tuple[bytes, int]]:
@@ -185,9 +192,29 @@ class PiperTTSProvider:
                 break
             if chunk.sample_channels != 1:
                 raise RuntimeError("Piper TTS doit produire un flux audio mono.")
-            yield chunk.audio_float_array.astype("float32", copy=False).tobytes(), chunk.sample_rate
+            audio = self._add_pause(chunk.audio_float_array, chunk.sample_rate, chunk.phonemes)
+            yield audio.astype("float32", copy=False).tobytes(), chunk.sample_rate
             if stop.is_set():
                 break
+
+    @classmethod
+    def _add_pause(cls, audio: Any, sample_rate: int, phonemes: list[str]) -> Any:
+        """Complete a punctuation pause without duplicating the model's silence."""
+        import numpy as np
+
+        ending = "".join(phonemes).rstrip(' \t\n\"\'»”)]')[-1:]
+        pause_samples = round(cls.PUNCTUATION_PAUSES.get(ending, 0.0) * sample_rate)
+        if not pause_samples or not audio.size:
+            return audio
+        # Inspect only the tail. Leave quiet speech and all existing samples
+        # intact; add just the missing silence, including across queued texts.
+        tail = audio[-pause_samples:]
+        audible = np.flatnonzero(np.abs(tail) > 0.003)
+        silence_samples = tail.size - audible[-1] - 1 if audible.size else tail.size
+        missing = pause_samples - silence_samples
+        if missing > 0:
+            return np.concatenate((audio, np.zeros(missing, dtype=audio.dtype)))
+        return audio
 
     def shutdown(self) -> None:
         self._model = None

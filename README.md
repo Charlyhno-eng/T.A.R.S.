@@ -15,10 +15,13 @@ T.A.R.S. is not a finished product, but an accessible base for building a person
 The interface sends each transcription to GLM and speaks its response.
 By default, GLM gives a brief spoken reply to reduce response time; you can ask for more detail when needed.
 GLM uses low reasoning effort for conversation and streams its reply. T.A.R.S. starts synthesizing
-the first sentence (or a bounded phrase in a long sentence) while the rest arrives, and plays Piper TTS
+the first sentence while the rest arrives, and plays Piper TTS
 audio as it is generated instead of waiting for a complete audio file. The response appears progressively;
 the assistant becomes available again after all speech has played. Actual latency still depends on
 your CPU, network connection, and GLM availability.
+Speech keeps sentences together for smoother intonation. Long sentences can start at a
+clause boundary after 240 characters, with a 400-character fallback at a word boundary;
+waiting for a complete phrase can slightly delay the start of speech.
 The app displays its name as “T.A.R.S.”, while the assistant uses “TARS” without periods in spoken responses.
 
 ---
@@ -51,7 +54,7 @@ In Settings, **Window at startup** lets you choose full screen or a window with 
 
 Providers live in `src/providers/stt`, `src/providers/tts`, and `src/providers/llm`. GLM 5.3 Flash is implemented in `glm_5_3_flash.py`. Each `adapter.py` only selects the provider used by its service; local resource installation and voice selection belong to the STT/TTS providers. To switch models, implement a provider with the same `complete(text, language, history)` method and change the import in `src/providers/llm/adapter.py`. An optional `stream(text, language, history)` method can yield text fragments for earlier speech; providers with only `complete` still work. You can also pass a provider directly to `LLMService`. For an OpenAI-compatible chat endpoint, supply a different `LLMConfig` to `GLMProvider`; the GLM-specific reasoning option is only sent for the default model.
 
-Piper uses **Lessac medium** (`en_US-lessac-medium`) for English and **Siwis medium** (`fr_FR-siwis-medium`) for French. Synthesis uses slightly slower pacing and increased phoneme variation to make the delivery sound less mechanical. In Settings, open **Local models** just below the language buttons and click **Download missing models** to install the selected voice (about 63 MB) in `~/.tars/tts/piper`; switch language in Settings and download again to install the other voice. Once installed, both voices load and synthesize offline on the CPU. Updating an existing Pocket TTS installation requires downloading Piper voices; existing Pocket files remain untouched. To use Pocket TTS again, change the import in `src/providers/tts/adapter.py` to `from providers.tts.pocket_tts import PocketTTSProvider as TTSAdapter`. Both providers implement the contract in `provider.py`, including mono float32 audio streaming. Piper's engine is GPL-3.0; voice licenses are documented in their [Lessac](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD) and [Siwis](https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD) model cards.
+Piper uses **Lessac medium** (`en_US-lessac-medium`) for English and **Siwis medium** (`fr_FR-siwis-medium`) for French. Synthesis uses conversational speed, increased phoneme duration variation, and short punctuation pauses to soften the mechanical delivery. It preserves the model's volume dynamics with fixed gain instead of normalizing every sentence to full volume. These adjustments apply to both streaming and WAV output with existing voices; no new download is needed. In Settings, open **Local models** just below the language buttons and click **Download missing models** to install the selected voice (about 63 MB) in `~/.tars/tts/piper`; switch language in Settings and download again to install the other voice. Once installed, both voices load and synthesize offline on the CPU. Updating an existing Pocket TTS installation requires downloading Piper voices; existing Pocket files remain untouched. To use Pocket TTS again, change the import in `src/providers/tts/adapter.py` to `from providers.tts.pocket_tts import PocketTTSProvider as TTSAdapter`. Both providers implement the contract in `provider.py`, including mono float32 audio streaming. Piper's engine is GPL-3.0; voice licenses are documented in their [Lessac](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD) and [Siwis](https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD) model cards.
 
 ### Run
 

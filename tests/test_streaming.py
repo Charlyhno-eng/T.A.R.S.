@@ -225,10 +225,34 @@ class StreamingPipelineTests(unittest.TestCase):
             self.assertEqual(" ".join(chunks), text)
             self.assertEqual(len(chunks), 2)
         buffer = SpeechTextBuffer()
-        text = "A long sentence " * 30
+        text = "A long sentence " * 60
         chunks = buffer.add(text)
         self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(chunk) <= 400 for chunk in chunks))
         self.assertEqual(" ".join([*chunks, buffer.finish()]), text.strip())
+
+    def test_normal_sentences_keep_their_clauses_and_intonation(self) -> None:
+        for text in (
+            "I can help: tell me what you need; we can work through the details together "
+            "and find a simple solution that suits your plans for tomorrow.",
+            "Je peux vous aider : dites-moi ce dont vous avez besoin ; nous pourrons "
+            "examiner les détails ensemble et trouver une solution adaptée à vos projets.",
+        ):
+            with self.subTest(text=text):
+                self.assertGreater(len(text), 120)
+                buffer = SpeechTextBuffer()
+                for character in text:
+                    self.assertEqual(buffer.add(character), [])
+                self.assertEqual(buffer.add(" "), [text])
+                self.assertEqual(buffer.finish(), "")
+
+    def test_long_sentences_prefer_clause_boundaries_and_keep_all_words(self) -> None:
+        buffer = SpeechTextBuffer()
+        clause = "Let's examine the details " * 8 + ","
+        tail = " and then choose the solution that works best for you"
+        text = clause + tail
+        self.assertEqual(buffer.add(text), [clause])
+        self.assertEqual(buffer.finish(), tail.strip())
 
     def test_pcm_conversion_supports_native_stereo_integer_output(self) -> None:
         import numpy as np

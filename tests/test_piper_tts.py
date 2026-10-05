@@ -102,7 +102,8 @@ class PiperTests(unittest.TestCase):
         model = Mock()
         self.provider._model = model
         audio = np.array([-0.5, 0.0, 0.5], dtype=np.float64)
-        chunk = SimpleNamespace(sample_channels=1, sample_rate=22050, audio_float_array=audio)
+        chunk = SimpleNamespace(sample_channels=1, sample_rate=22050,
+                                audio_float_array=audio, phonemes=[])
         produced = []
 
         def synthesize(text, syn_config=None):
@@ -130,6 +131,46 @@ class PiperTests(unittest.TestCase):
         self.provider.shutdown()
         with self.assertRaises(RuntimeError):
             list(self.provider.generate_stream("Hello.", threading.Event()))
+
+    def test_punctuation_pauses_preserve_speech_and_existing_silence(self) -> None:
+        rate = 1000
+        speech = np.array([0.1, -0.2, 0.3], dtype=np.float32)
+        for ending, duration in ((".", 0.24), ("?", 0.30), ("!", 0.20), (",", 0.08)):
+            with self.subTest(ending=ending):
+                audio = np.concatenate((speech, np.zeros(20, dtype=np.float32)))
+                result = self.provider._add_pause(audio, rate, ["a", ending, "”"])
+                np.testing.assert_array_equal(result[:audio.size], audio)
+                self.assertEqual(result.size, speech.size + round(duration * rate))
+                self.assertFalse(np.any(result[speech.size:]))
+        for audio, phonemes in (
+            (np.concatenate((speech, np.zeros(500, dtype=np.float32))), ["a", "."]),
+            (speech, ["a"]),  # No artificial pause in an unfinished fragment.
+            (np.array([], dtype=np.float32), ["."]),
+        ):
+            self.assertIs(self.provider._add_pause(audio, rate, phonemes), audio)
+
+    def test_wav_and_stream_share_dynamics_and_punctuation_pauses(self) -> None:
+        from piper import SynthesisConfig
+
+        self.provider._model = Mock()
+        self.provider._model.config.sample_rate = 22050
+        audio = np.array([0.1, -0.2, 0.3], dtype=np.float32)
+        chunk = SimpleNamespace(sample_channels=1, sample_rate=22050,
+                                audio_float_array=audio, phonemes=["a", "."])
+        self.provider._model.synthesize.side_effect = lambda *args, **kwargs: iter([chunk])
+        streamed = b"".join(pcm for pcm, _ in self.provider.generate_stream("Hello.", threading.Event()))
+        output = self.provider.generate("Hello.", self.provider._data_directory / "sample.wav")
+        with wave.open(str(output), "rb") as wav_file:
+            self.assertEqual(wav_file.getnchannels(), 1)
+            self.assertEqual(wav_file.getframerate(), 22050)
+            pcm = wav_file.readframes(wav_file.getnframes())
+        expected = (np.frombuffer(streamed, dtype=np.float32) * 32767).astype(np.int16)
+        np.testing.assert_array_equal(np.frombuffer(pcm, dtype=np.int16), expected)
+        for call in self.provider._model.synthesize.call_args_list:
+            config = call.kwargs["syn_config"]
+            self.assertIsInstance(config, SynthesisConfig)
+            self.assertFalse(config.normalize_audio)
+            self.assertEqual(config.volume, 1.25)
 
 
 @unittest.skipUnless(os.environ.get("TARS_TEST_PIPER") == "1",

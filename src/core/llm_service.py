@@ -10,7 +10,10 @@ from providers.llm.adapter import LLMAdapter
 
 
 class SpeechTextBuffer:
-    """Release complete sentences or bounded clauses without splitting words."""
+    """Keep sentence intonation, using clauses only when a sentence grows long."""
+
+    CLAUSE_LIMIT = 240
+    WORD_LIMIT = 400
 
     def __init__(self) -> None:
         self.pending = ""
@@ -20,12 +23,21 @@ class SpeechTextBuffer:
         chunks = []
         while self.pending:
             # Require whitespace after punctuation to preserve decimals and URLs.
-            boundary = re.search(r"[.!?;:\n][\"'»”)]*\s+", self.pending)
+            boundary = re.search(r"[.!?\n][\"'»”)]*\s+", self.pending)
             if boundary:
                 end = boundary.end()
-            elif len(self.pending) >= 120:
-                end = self.pending.rfind(" ", 0, 120)
-                if end < 1:
+            elif len(self.pending) >= self.CLAUSE_LIMIT:
+                # A comma/semicolon keeps continuation intonation; arbitrary
+                # short fragments make Piper repeatedly sound like it is done.
+                clauses = list(re.finditer(r"[,;:][\"'»”)]*\s+",
+                                           self.pending[:self.WORD_LIMIT]))
+                if clauses:
+                    end = clauses[-1].end()
+                elif len(self.pending) >= self.WORD_LIMIT:
+                    end = self.pending.rfind(" ", 0, self.WORD_LIMIT)
+                    if end < 1:
+                        break
+                else:
                     break
             else:
                 break
