@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -348,3 +348,98 @@ class DesktopTests(unittest.TestCase):
             engine.deleteLater()
             QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
             assistant.shutdown()
+
+    def test_settings_download_is_visible_and_installs_only_missing_models(self) -> None:
+        self.settings._key_path = Path(self.directory.name) / "llm_api_key"
+        with patch("core.assistant_controller.Settings", return_value=self.settings):
+            assistant = AssistantController()
+        from core.export_service import ExportService
+        exporter = ExportService()
+        engine = QQmlApplicationEngine()
+        ui_directory = Path(__file__).resolve().parents[1] / "src" / "ui"
+        engine.addImportPath(str(ui_directory))
+        for name, value in (("assistant", assistant), ("desktop", self.desktop),
+                            ("exporter", exporter)):
+            engine.rootContext().setContextProperty(name, value)
+        warnings = []
+        engine.warnings.connect(lambda errors: warnings.extend(str(error) for error in errors))
+        try:
+            with (
+                patch.object(type(assistant._tts_service), "installed", new_callable=PropertyMock) as tts_installed,
+                patch.object(type(assistant._stt_service), "installed", new_callable=PropertyMock) as stt_installed,
+                patch.object(assistant._tts_service, "download") as tts_download,
+                patch.object(assistant._stt_service, "download") as stt_download,
+            ):
+                tts_installed.return_value = stt_installed.return_value = False
+                engine.loadData(f'''
+                    import QtQuick
+                    import QtQuick.Controls
+                    import "{(ui_directory / 'components').as_uri()}"
+                    ApplicationWindow {{
+                        width: 600; height: 560; visible: true
+                        SettingsDialog {{ anchors.centerIn: parent }}
+                    }}
+                '''.encode())
+                self.assertTrue(engine.rootObjects())
+                window = engine.rootObjects()[0]
+                settings = window.findChild(QObject, "settingsDialog")
+                button = window.findChild(QObject, "downloadModelsButton")
+                voice_status = window.findChild(QObject, "ttsModelStatus")
+                recognition_status = window.findChild(QObject, "sttModelStatus")
+                self.assertIsNotNone(button)
+
+                def click_download():
+                    point = button.mapToScene(QPointF(button.width() / 2, button.height() / 2))
+                    # The whole control must be reachable without scrolling at minimum size.
+                    self.assertGreaterEqual(point.y() - button.height() / 2, settings.property("y"))
+                    self.assertLessEqual(point.y() + button.height() / 2,
+                                         settings.property("y") + settings.property("height"))
+                    QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, point.toPoint())
+                    QTest.qWait(20)
+
+                for language, voice in (("en", "English"), ("fr", "Français")):
+                    with self.subTest(language=language):
+                        tts_installed.return_value = stt_installed.return_value = False
+                        assistant.modelsInstalledChanged.emit()
+                        assistant.setLanguage(language)
+                        tts_download.reset_mock()
+                        stt_download.reset_mock()
+                        QMetaObject.invokeMethod(settings, "open")
+                        QTest.qWait(150)
+                        self.assertTrue(button.property("visible"))
+                        self.assertTrue(button.property("enabled"))
+                        self.assertIn(voice, voice_status.property("text"))
+                        click_download()
+                        tts_download.assert_called_once()
+                        stt_download.assert_not_called()
+                        self.assertTrue(assistant.modelsDownloading)
+                        self.assertFalse(button.property("enabled"))
+
+                        # Failure restores the action, and an existing voice is kept.
+                        assistant._on_model_installation_failed()
+                        self.assertTrue(button.property("enabled"))
+                        tts_installed.return_value = True
+                        assistant.modelsInstalledChanged.emit()
+                        click_download()
+                        tts_download.assert_called_once()
+                        stt_download.assert_called_once()
+                        stt_installed.return_value = True
+                        assistant._on_tts_state_changed("ready")
+                        assistant._on_stt_state_changed("ready")
+                        assistant._on_stt_installed()
+                        QTest.qWait(20)
+                        self.assertFalse(assistant.modelsDownloading)
+                        self.assertTrue(assistant.modelsInstalled)
+                        self.assertFalse(button.property("enabled"))
+                        self.assertIn("Installed" if language == "en" else "Installée",
+                                      voice_status.property("text"))
+                        self.assertIn("Installed" if language == "en" else "Installé",
+                                      recognition_status.property("text"))
+                        QMetaObject.invokeMethod(settings, "close")
+                        QTest.qWait(100)
+                self.assertEqual(warnings, [])
+        finally:
+            engine.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+            assistant.shutdown()
+            exporter.shutdown()

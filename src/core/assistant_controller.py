@@ -159,6 +159,16 @@ class AssistantController(QObject):
             and self._stt_service.installed
         )
 
+    @Property(bool, notify=modelsInstalledChanged)
+    def ttsInstalled(self) -> bool:
+        """Return whether the voice for the selected language is installed."""
+        return self._tts_service.installed
+
+    @Property(bool, notify=modelsInstalledChanged)
+    def sttInstalled(self) -> bool:
+        """Return whether local speech recognition is installed."""
+        return self._stt_service.installed
+
     @Property(bool, notify=modelsReadyChanged)
     def modelsReady(self) -> bool:
         """Return whether both local models are loaded."""

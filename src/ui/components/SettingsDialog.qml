@@ -178,6 +178,16 @@ Dialog {
 
                 Item { width: 1; height: 8 }
 
+                LocalModelsSettings {
+                    width: parent.width - 48
+                }
+
+                Rectangle {
+                    width: parent.width - 48
+                    height: 1
+                    color: Theme.panelBorder
+                }
+
                 WindowStartupSettings {
                     id: windowSettings
                     width: parent.width - 48
