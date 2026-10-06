@@ -48,45 +48,30 @@ ApplicationWindow {
         onPressed: window.startSystemMove()
     }
 
-    Canvas {
+    Item {
         anchors.fill: parent
         opacity: 0.045
-
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-
-        onPaint: {
-            var ctx = getContext("2d")
-
-            ctx.reset()
-
-            ctx.strokeStyle =
-                Theme.accentCyan
-
-            ctx.lineWidth = 1
-
-            var step = 48
-
-            for (
-                var x = 0;
-                x < width;
-                x += step
-            ) {
-                ctx.beginPath()
-                ctx.moveTo(x, 0)
-                ctx.lineTo(x, height)
-                ctx.stroke()
+        // Scene-graph lines avoid a full-window CPU image and texture.
+        Repeater {
+            model: Math.ceil(parent.width / 48)
+            Rectangle {
+                required property int index
+                x: index * 48 - 0.5
+                width: 1
+                height: parent.height
+                color: Theme.accentCyan
+                antialiasing: true
             }
-
-            for (
-                var y = 0;
-                y < height;
-                y += step
-            ) {
-                ctx.beginPath()
-                ctx.moveTo(0, y)
-                ctx.lineTo(width, y)
-                ctx.stroke()
+        }
+        Repeater {
+            model: Math.ceil(parent.height / 48)
+            Rectangle {
+                required property int index
+                y: index * 48 - 0.5
+                height: 1
+                width: parent.width
+                color: Theme.accentCyan
+                antialiasing: true
             }
         }
     }
@@ -201,8 +186,9 @@ ApplicationWindow {
         Timer {
             interval: 1000
 
-            running: true
+            running: window.visible && window.visibility !== Window.Minimized && clockDisplay.visible
             repeat: true
+            onRunningChanged: if (running) clock.now = new Date()
 
             onTriggered: {
                 clock.now = new Date()

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
+from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
@@ -36,6 +38,35 @@ class STTService(QObject):
         self._installing = False
         self._transcribing = False
         self._lock = threading.Lock()
+        self._workers: set[threading.Thread] = set()
+        self._shutdown_requested = False
+        self._resources_released = False
+
+    def _start_worker(self, target: Callable, name: str, args: tuple = ()) -> None:
+        with self._lock:
+            if self._shutdown_requested:
+                return
+            worker = threading.Thread(target=self._run_worker, args=(target, args),
+                                      name=name, daemon=True)
+            self._workers.add(worker)
+            worker.start()
+
+    def _run_worker(self, target: Callable, args: tuple) -> None:
+        try:
+            target(*args)
+        finally:
+            with self._lock:
+                self._workers.discard(threading.current_thread())
+            self._release_resources_if_stopped()
+
+    def _release_resources_if_stopped(self) -> None:
+        with self._lock:
+            if (not self._shutdown_requested or self._workers
+                    or self._resources_released):
+                return
+            self._resources_released = True
+            self._initialized = False
+        self._adapter.shutdown()
 
     @property
     def installed(self) -> bool:
@@ -64,11 +95,7 @@ class STTService(QObject):
                 return
             self._initializing = True
         self.stateChanged.emit("loading")
-        threading.Thread(
-            target=self._initialize_worker,
-            name="TARS-STT-Init",
-            daemon=True,
-        ).start()
+        self._start_worker(self._initialize_worker, "TARS-STT-Init")
 
     def _initialize_worker(self) -> None:
         try:
@@ -93,11 +120,7 @@ class STTService(QObject):
             self._installing = True
         self.installationStarted.emit()
         self.stateChanged.emit("downloading")
-        threading.Thread(
-            target=self._download_worker,
-            name="TARS-STT-Download",
-            daemon=True,
-        ).start()
+        self._start_worker(self._download_worker, "TARS-STT-Download")
 
     def _download_worker(self) -> None:
         try:
@@ -124,12 +147,7 @@ class STTService(QObject):
                 return
             self._transcribing = True
         self.stateChanged.emit("transcribing")
-        threading.Thread(
-            target=self._transcribe_worker,
-            args=(audio_path,),
-            name="TARS-STT-Transcribe",
-            daemon=True,
-        ).start()
+        self._start_worker(self._transcribe_worker, "TARS-STT-Transcribe", (audio_path,))
 
     def _transcribe_worker(self, audio_path: Path) -> None:
         try:
@@ -148,7 +166,12 @@ class STTService(QObject):
                 self.stateChanged.emit("ready")
 
     def shutdown(self) -> None:
-        """Release provider resources."""
-        self._adapter.shutdown()
+        """Release file-backed weights only after their last worker stops."""
         with self._lock:
-            self._initialized = False
+            self._shutdown_requested = True
+            workers = tuple(self._workers)
+        deadline = time.monotonic() + 5
+        for worker in workers:
+            worker.join(timeout=max(0, deadline - time.monotonic()))
+        # A slow load/inference releases its own resources in _run_worker.
+        self._release_resources_if_stopped()

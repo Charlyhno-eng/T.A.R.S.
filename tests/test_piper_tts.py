@@ -49,6 +49,24 @@ class PiperTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             PiperTTSProvider("de")
 
+    def test_voice_uses_bounded_cpu_threads_without_spin_or_retained_arena(self) -> None:
+        config_path = self.provider._data_directory / "voice.json"
+        config_path.write_text('{}', encoding="utf-8")
+        with patch("onnxruntime.InferenceSession") as session, patch(
+            "piper.PiperConfig.from_dict"
+        ) as config, patch("providers.tts.piper_tts.cpu_threads", return_value=2):
+            voice = PiperTTSProvider._load_voice("voice.onnx", config_path=str(config_path))
+        self.assertIs(voice.session, session.return_value)
+        self.assertIs(voice.config, config.return_value)
+        self.assertEqual(session.call_args.args, ("voice.onnx",))
+        self.assertEqual(session.call_args.kwargs["providers"], ["CPUExecutionProvider"])
+        options = session.call_args.kwargs["sess_options"]
+        self.assertEqual(options.intra_op_num_threads, 2)
+        self.assertEqual(options.inter_op_num_threads, 1)
+        self.assertFalse(options.enable_cpu_mem_arena)
+        for pool in ("intra_op", "inter_op"):
+            self.assertEqual(options.get_session_config_entry(f"session.{pool}.allow_spinning"), "0")
+
     def test_bundled_voice_is_preferred_and_ready_only_for_french_piper(self) -> None:
         from providers.tts.pocket_tts import PocketTTSProvider
 
@@ -68,11 +86,11 @@ class PiperTests(unittest.TestCase):
         self.assertTrue(self.provider.installed)
         self.assertFalse(self.provider._installation_marker.exists())
         with patch("huggingface_hub.hf_hub_download", side_effect=AssertionError("network")), patch(
-            "piper.PiperVoice.load", return_value=Mock()
+            "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
         ) as load:
             self.provider.initialize()
             load.assert_called_once_with(str(directory / "model.onnx"),
-                                         config_path=str(directory / "model.onnx.json"), use_cuda=False)
+                                         config_path=str(directory / "model.onnx.json"))
             self.provider.download()
             fresh = PiperTTSProvider("fr", data_directory=self.provider._data_directory / "fresh")
             fresh.download()
@@ -89,7 +107,7 @@ class PiperTests(unittest.TestCase):
         self.provider.set_language("fr")
         self.assertFalse(self.provider.installed)
         with patch("huggingface_hub.hf_hub_download", side_effect=self.download_file) as download, patch(
-            "piper.PiperVoice.load", return_value=Mock()
+            "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
         ):
             self.provider.download()
         self.assertEqual(download.call_count, 2)
@@ -101,7 +119,7 @@ class PiperTests(unittest.TestCase):
         pocket_file = self.provider._data_directory / "pocket_tts_installed.json"
         pocket_file.write_text("existing Pocket installation")
         with patch("huggingface_hub.hf_hub_download", side_effect=self.download_file) as download, patch(
-            "piper.PiperVoice.load", return_value=Mock()
+            "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
         ) as load:
             for language in ("en", "fr"):
                 self.provider.set_language(language)
@@ -116,12 +134,11 @@ class PiperTests(unittest.TestCase):
                 self.assertEqual(call.kwargs["repo_id"], self.provider.PUBLIC_REPOSITORY)
                 self.assertEqual(call.kwargs["revision"], self.provider.VOICES_REVISION)
                 self.assertIn(self.languages[language]["voice"], call.kwargs["filename"])
-            self.assertFalse(load.call_args.kwargs["use_cuda"])
         self.assertEqual(pocket_file.read_text(), "existing Pocket installation")
         self.provider.set_language("en")
         self.assertTrue(self.provider.installed)
         with patch("huggingface_hub.hf_hub_download", side_effect=AssertionError("network")), patch(
-            "piper.PiperVoice.load", return_value=Mock()
+            "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
         ) as load:
             restarted = PiperTTSProvider(data_directory=self.provider._data_directory)
             restarted.initialize()
@@ -133,13 +150,13 @@ class PiperTests(unittest.TestCase):
         model.parent.mkdir(parents=True)
         model.write_bytes(b"junk")
         with patch("huggingface_hub.hf_hub_download", side_effect=self.download_file) as download, patch(
-            "piper.PiperVoice.load", return_value=Mock()
+            "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
         ):
             self.provider.download()
             self.assertTrue(download.call_args_list[0].kwargs["force_download"])
         model.write_bytes(b"x")
         self.assertFalse(self.provider.installed)
-        with patch("piper.PiperVoice.load") as load:
+        with patch("providers.tts.piper_tts.PiperTTSProvider._load_voice") as load:
             with self.assertRaises(RuntimeError):
                 self.provider.initialize()
             load.assert_not_called()

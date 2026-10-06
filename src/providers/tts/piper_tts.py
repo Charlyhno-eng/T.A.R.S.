@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from core.paths import data_directory as user_data_directory, resource_directory
+from core.runtime_resources import cpu_threads, release_unused_memory
 
 
 logger = logging.getLogger("TARS.PiperTTS")
@@ -215,15 +216,33 @@ class PiperTTSProvider:
             raise RuntimeError("Les fichiers locaux de Piper TTS pour cette langue sont incomplets.")
         if on_status:
             on_status("Chargement du modèle Piper TTS local...")
-        from piper import PiperVoice
-
-        self._model = PiperVoice.load(
-            str(self._model_path(language)), config_path=str(self._config_path(language)),
-            use_cuda=False,
-        )
+        self._model = self._load_voice(str(self._model_path(language)),
+                                      config_path=str(self._config_path(language)))
         self._loaded_language = language
         if on_status:
             on_status("Moteur vocal prêt.")
+
+    @staticmethod
+    def _load_voice(model_path: str, *, config_path: str) -> Any:
+        """Build a CPU voice with bounded, sleeping inference threads."""
+        import onnxruntime
+        from piper import PiperConfig, PiperVoice
+
+        options = onnxruntime.SessionOptions()
+        options.intra_op_num_threads = cpu_threads()
+        options.inter_op_num_threads = 1
+        options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+        options.add_session_config_entry("session.inter_op.allow_spinning", "0")
+        # Speech lengths vary. Do not retain the largest utterance's arena.
+        options.enable_cpu_mem_arena = False
+        config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        return PiperVoice(
+            config=PiperConfig.from_dict(config),
+            session=onnxruntime.InferenceSession(
+                model_path, sess_options=options,
+                providers=["CPUExecutionProvider"],
+            ),
+        )
 
     def generate(self, text: str, output_path: Path) -> Path:
         """Write the same phrasing and dynamics as streaming to a PCM WAV."""
@@ -243,6 +262,14 @@ class PiperTTSProvider:
 
     def generate_stream(self, text: str, stop: threading.Event) -> Iterator[tuple[bytes, int]]:
         """Adapt Piper's sentence chunks to Qt's mono float32 PCM contract."""
+        stream = self._generate_stream(text, stop)
+        try:
+            yield from stream
+        finally:
+            stream.close()
+            release_unused_memory()
+
+    def _generate_stream(self, text: str, stop: threading.Event) -> Iterator[tuple[bytes, int]]:
         if self._model is None:
             raise RuntimeError("Piper TTS n'est pas initialisé.")
         if stop.is_set() or not text.strip():
@@ -287,8 +314,11 @@ class PiperTTSProvider:
         return audio
 
     def shutdown(self) -> None:
+        had_model = self._model is not None
         self._model = None
         self._loaded_language = None
+        if had_model:
+            release_unused_memory(collect=True)
 
     @classmethod
     def _language_info(cls, language: str) -> dict[str, Any]:

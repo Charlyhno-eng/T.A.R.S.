@@ -16,6 +16,8 @@ logger = logging.getLogger("TARS.TTS")
 class TTSService(QObject):
     """Provide asynchronous offline TTS operations."""
 
+    MAX_PENDING_CHUNKS = 2
+
     statusChanged = Signal(str)
     stateChanged = Signal(str)
     errorOccurred = Signal(str)
@@ -49,11 +51,13 @@ class TTSService(QObject):
         self._session = 0
         self._text_queue: Queue[str | None] = Queue()
         self._stop_event = threading.Event()
+        self._audio_slots = threading.Semaphore(self.MAX_PENDING_CHUNKS)
         self._worker: threading.Thread | None = None
         self._playback = AudioPlayback(self)
         self._playback.started.connect(self._on_playback_started)
         self._playback.finished.connect(self._on_playback_finished)
         self._playback.errorOccurred.connect(self._on_playback_error)
+        self._playback.chunkConsumed.connect(self._on_chunk_consumed)
         self._audioChunk.connect(self._on_audio_chunk)
         self._generationFinished.connect(self._on_generation_finished)
         self._generationFailed.connect(self._on_generation_failed)
@@ -242,10 +246,11 @@ class TTSService(QObject):
             self._speaking = True
             self._text_queue = Queue()
             self._stop_event = threading.Event()
+            self._audio_slots = threading.Semaphore(self.MAX_PENDING_CHUNKS)
         self._playback.begin()
         self._worker = threading.Thread(
             target=self._speak_worker,
-            args=(session, self._text_queue, self._stop_event),
+            args=(session, self._text_queue, self._stop_event, self._audio_slots),
             name="TARS-TTS-Speech",
             daemon=True,
         )
@@ -263,16 +268,24 @@ class TTSService(QObject):
             self._text_queue.put(None)
 
     def _speak_worker(self, session: int, texts: Queue[str | None],
-                      stop: threading.Event) -> None:
+                      stop: threading.Event, audio_slots: threading.Semaphore) -> None:
         try:
             while not stop.is_set():
                 text = texts.get()
                 if text is None or stop.is_set():
                     break
                 for pcm, sample_rate in self._adapter.generate_stream(text, stop):
+                    # Bound both queued Qt signals and unplayed PCM. Preserve
+                    # provider chunk boundaries for native-rate resampling.
+                    while not stop.is_set():
+                        if audio_slots.acquire(timeout=0.1):
+                            break
                     if stop.is_set():
                         return
-                    self._audioChunk.emit(session, pcm, sample_rate)
+                    if pcm:
+                        self._audioChunk.emit(session, pcm, sample_rate)
+                    else:
+                        audio_slots.release()
             if not stop.is_set():
                 self._generationFinished.emit(session)
         except Exception as exc:
@@ -284,6 +297,10 @@ class TTSService(QObject):
     def _on_audio_chunk(self, session: int, pcm: bytes, sample_rate: int) -> None:
         if session == self._session and self._speaking:
             self._playback.append(pcm, sample_rate)
+
+    @Slot()
+    def _on_chunk_consumed(self) -> None:
+        self._audio_slots.release()
 
     @Slot(int)
     def _on_generation_finished(self, session: int) -> None:

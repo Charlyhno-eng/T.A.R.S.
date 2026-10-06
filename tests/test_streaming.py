@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QBuffer, QCoreApplication, QIODevice
 from PySide6.QtMultimedia import QAudioFormat
 from PySide6.QtWidgets import QApplication
 
@@ -281,13 +281,74 @@ class StreamingPipelineTests(unittest.TestCase):
         writer = Mock()
         writer.write.side_effect = [4, 0, 12]
         playback._sink, playback._device = sink, writer
-        playback._pending.append(b"\x00" * 16)
+        pcm = b"\x00" * 16
+        playback._pending.append(memoryview(pcm))
         finished = []
         playback.finished.connect(lambda: finished.append(True))
         playback._pump()
         self.assertEqual(len(playback._pending[0]), 12)
+        self.assertIs(playback._pending[0].obj, pcm)
         playback.end()
         self.assertFalse(finished)
         sink.processedUSecs.return_value = audio_format.durationForBytes(16)
         playback._pump()
         self.assertEqual(finished, [True])
+
+    def test_pcm_views_can_be_written_to_a_real_qt_device(self) -> None:
+        audio_format = QAudioFormat()
+        audio_format.setSampleRate(24_000)
+        audio_format.setChannelCount(1)
+        audio_format.setSampleFormat(QAudioFormat.SampleFormat.Float)
+        sink = Mock()
+        sink.format.return_value = audio_format
+        sink.state.return_value = QtAudio.State.ActiveState
+        sink.bytesFree.return_value = 4
+        output = QBuffer()
+        self.assertTrue(output.open(QIODevice.OpenModeFlag.WriteOnly))
+        playback = AudioPlayback()
+        playback.begin()
+        playback._sink, playback._device = sink, output
+        pcm = b"\x00\x00\x80\x3f" * 32
+        playback._pending.append(memoryview(pcm))
+        playback._pump()
+        self.assertEqual(bytes(output.data()), pcm)
+        self.assertFalse(playback._pending)
+        playback.stop()
+
+    def test_fast_synthesis_is_bounded_by_playback_and_cancellation_unblocks_it(self) -> None:
+        produced = []
+        received = []
+        closed = threading.Event()
+        chunks = [bytes([index]) * 4800 for index in range(20)]
+
+        def generate(text, stop):
+            try:
+                for pcm in chunks:
+                    produced.append(pcm)
+                    yield pcm, 24_000
+            finally:
+                closed.set()
+
+        with patch("core.tts_service.TTSAdapter") as adapter, patch.object(
+            AudioPlayback, "append", side_effect=lambda pcm, rate: received.append(pcm)
+        ):
+            adapter.return_value.generate_stream.side_effect = generate
+            tts = TTSService()
+            tts._initialized = True
+            try:
+                tts.begin_response()
+                tts.speak("A much longer response.")
+                self.wait_until(lambda: len(received) == tts.MAX_PENDING_CHUNKS
+                                and len(produced) == tts.MAX_PENDING_CHUNKS + 1)
+                self.assertEqual(received, chunks[:tts.MAX_PENDING_CHUNKS])
+                # Draining one provider chunk permits exactly one more packet.
+                tts._playback.chunkConsumed.emit()
+                self.wait_until(lambda: len(received) == tts.MAX_PENDING_CHUNKS + 1
+                                and len(produced) == tts.MAX_PENDING_CHUNKS + 2)
+                self.assertEqual(received, chunks[:tts.MAX_PENDING_CHUNKS + 1])
+                tts.cancel_response()
+                tts._worker.join(timeout=1)
+                self.assertFalse(tts._worker.is_alive())
+                self.assertTrue(closed.is_set())
+            finally:
+                tts.shutdown()

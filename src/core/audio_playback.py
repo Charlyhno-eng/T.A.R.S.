@@ -18,12 +18,13 @@ class AudioPlayback(QObject):
     started = Signal()
     finished = Signal()
     errorOccurred = Signal(str)
+    chunkConsumed = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._sink: QAudioSink | None = None
         self._device = None
-        self._pending: deque[bytes] = deque()
+        self._pending: deque[memoryview] = deque()
         self._input_finished = False
         self._started = False
         self._active = False
@@ -56,7 +57,7 @@ class AudioPlayback(QObject):
                 if self._device is None or self._sink.state() == QtAudio.State.StoppedState:
                     raise RuntimeError(f"Unable to start audio playback: {self._sink.error().name}.")
                 self._timer.start()
-            self._pending.append(self._convert(pcm, sample_rate, self._sink.format()))
+            self._pending.append(memoryview(self._convert(pcm, sample_rate, self._sink.format())))
             self._pump()
         except Exception as exc:
             self._fail(str(exc))
@@ -112,7 +113,9 @@ class AudioPlayback(QObject):
             size -= size % sink.format().bytesPerFrame()
             if not size:
                 break
-            written = self._device.write(chunk[:size])
+            # Some PySide versions reject memoryviews despite advertising them
+            # in QIODevice.write. Copy only this small output-buffer fragment.
+            written = self._device.write(bytes(chunk[:size]))
             if written < 0:
                 self._fail("Unable to write audio to the output device.")
                 return
@@ -121,8 +124,11 @@ class AudioPlayback(QObject):
             self._written += written
             if written == len(chunk):
                 self._pending.popleft()
+                self.chunkConsumed.emit()
             else:
-                self._pending[0] = chunk[written:]
+                # A view keeps partial writes from copying the remaining audio
+                # at every timer tick (quadratic work for long sentences).
+                self._pending[0] = memoryview(chunk)[written:]
             if not self._started:
                 self._started = True
                 self.started.emit()

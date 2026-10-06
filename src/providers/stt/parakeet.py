@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import tempfile
+import traceback
 import wave
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 from core.paths import data_directory as user_data_directory
+from core.runtime_resources import cpu_threads, release_unused_memory
 
 
 if TYPE_CHECKING:
@@ -21,8 +23,7 @@ class ParakeetProvider:
 
     REPOSITORY = "nvidia/parakeet-tdt-0.6b-v3"
     MODEL_FILE = "parakeet-tdt-0.6b-v3.nemo"
-    CPU_THREADS = min(4, len(os.sched_getaffinity(0))
-                      if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1))
+    CPU_THREADS = cpu_threads()
 
     def __init__(self, data_directory: Path | None = None) -> None:
         data_directory = data_directory or user_data_directory() / "stt"
@@ -30,6 +31,7 @@ class ParakeetProvider:
         self._installation_marker = data_directory / "parakeet_installed.json"
         self._model_path = data_directory / self.MODEL_FILE
         self._model: Any | None = None
+        self._checkpoint_directory: tempfile.TemporaryDirectory | None = None
 
     @property
     def installed(self) -> bool:
@@ -109,19 +111,50 @@ class ParakeetProvider:
         if on_status:
             on_status("Chargement local de Parakeet...")
 
+        import torch
+
+        torch.set_num_threads(self.CPU_THREADS)
         nemo_asr = self._import_nemo()
         from nemo.utils import logging as nemo_logging
+        from providers.stt.checkpoint import InferenceSaveRestoreConnector
 
         nemo_logging.setLevel(logging.ERROR)
-        self._model = nemo_asr.models.ASRModel.restore_from(
-            restore_path=str(self._model_path),
-            map_location="cpu",
+        # Keep the extracted checkpoint alive while tensors map its storage.
+        # In particular, Windows cannot delete files with live mappings.
+        # Use the checkpoint's filesystem: /tmp may be a RAM-backed tmpfs.
+        self._checkpoint_directory = tempfile.TemporaryDirectory(
+            prefix=".parakeet-", dir=self._data_directory,
         )
-        self._model.freeze()
-        self._release_loading_memory()
+        connector = InferenceSaveRestoreConnector()
+        try:
+            connector._unpack_nemo_file(
+                path2file=str(self._model_path),
+                out_folder=self._checkpoint_directory.name,
+            )
+            connector.model_extracted_dir = self._checkpoint_directory.name
+            self._model = nemo_asr.models.ASRModel.restore_from(
+                restore_path=str(self._model_path),
+                map_location="cpu",
+                save_restore_connector=connector,
+            )
+            self._model.freeze()
+        except Exception as exc:
+            # Failed restore frames can retain mapped tensors. Clear their
+            # locals before removing the backing file, also on Windows.
+            traceback.clear_frames(exc.__traceback__)
+            self.shutdown()
+            raise
+        release_unused_memory(collect=True)
 
     def transcribe(self, audio_path: Path, language: str = "en") -> str:
         """Convert an audio file into text."""
+        try:
+            return self._transcribe(audio_path, language)
+        finally:
+            # Inference activations are no longer live after the helper returns.
+            release_unused_memory()
+
+    def _transcribe(self, audio_path: Path, language: str) -> str:
         if self._model is None:
             raise RuntimeError("Parakeet n'est pas initialisé.")
 
@@ -195,21 +228,13 @@ class ParakeetProvider:
 
     def shutdown(self) -> None:
         """Release provider resources."""
+        had_resources = self._model is not None or self._checkpoint_directory is not None
         self._model = None
-
-    @staticmethod
-    def _release_loading_memory() -> None:
-        """Return temporary checkpoint allocations to the operating system."""
-        import ctypes
-        import gc
-
-        gc.collect()
-        try:
-            allocator = ctypes.CDLL(None)
-            malloc_trim = allocator.malloc_trim
-        except (AttributeError, OSError):
-            return
-        malloc_trim(0)
+        if had_resources:
+            release_unused_memory(collect=True)
+        if self._checkpoint_directory is not None:
+            self._checkpoint_directory.cleanup()
+            self._checkpoint_directory = None
 
     @staticmethod
     def _import_nemo() -> Any:
