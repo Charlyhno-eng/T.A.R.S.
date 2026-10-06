@@ -30,13 +30,12 @@ class PiperTests(unittest.TestCase):
         # Small fixture files exercise the real integrity checks and installation flow.
         languages = deepcopy(PiperTTSProvider.LANGUAGES)
         for info in languages.values():
-            info.update(config_size=2, model_md5=hashlib.md5(b"onnx").hexdigest(),
+            info.update(model_size=4, config_size=2, model_md5=hashlib.md5(b"onnx").hexdigest(),
                         config_md5=hashlib.md5(b"{}").hexdigest())
         self.languages = languages
-        for name, value in (("MODEL_SIZE", 4), ("LANGUAGES", languages)):
-            patcher = patch.object(PiperTTSProvider, name, value)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        patcher = patch.object(PiperTTSProvider, "LANGUAGES", languages)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def download_file(self, *, filename: str, local_dir: str, **kwargs) -> str:
         path = Path(local_dir) / filename
@@ -112,7 +111,7 @@ class PiperTests(unittest.TestCase):
             self.provider.download()
         self.assertEqual(download.call_count, 2)
         self.assertTrue(self.provider.installed)
-        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-siwis-medium.onnx")
+        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-tom-medium.onnx")
         self.assertEqual((directory / "model.onnx").read_bytes(), b"bad")
 
     def test_downloads_selected_voice_and_retains_both_languages_and_pocket(self) -> None:
@@ -241,9 +240,9 @@ class PiperTests(unittest.TestCase):
             self.assertFalse(config.normalize_audio)
             self.assertEqual(config.volume, 1.25)
 
-    def test_french_siwis_uses_own_pacing_and_processing_in_stream_and_wav(self) -> None:
+    def test_french_tom_uses_own_pacing_and_processing_in_stream_and_wav(self) -> None:
         self.provider.set_language("fr")
-        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-siwis-medium.onnx")
+        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-tom-medium.onnx")
         rate = 22050
         audio = (0.6 * np.sin(2 * np.pi * 1000 * np.arange(rate) / rate)).astype(np.float32)
         chunk = SimpleNamespace(sample_channels=1, sample_rate=rate,
@@ -405,22 +404,23 @@ class RealPiperTests(unittest.TestCase):
                         self.assertIs(provider._model, model)
                         chunks = list(provider.generate_stream(text, threading.Event()))
                         self.assertGreaterEqual(len(chunks), 2)
-                        self.assertEqual({rate for _, rate in chunks}, {22050})
+                        expected_rate = 44100 if language == "fr" else 22050
+                        self.assertEqual({rate for _, rate in chunks}, {expected_rate})
                         audio = np.frombuffer(b"".join(pcm for pcm, _ in chunks), dtype=np.float32)
-                        self.assertGreater(audio.size, 22050)
+                        self.assertGreater(audio.size, expected_rate)
                         self.assertTrue(np.isfinite(audio).all())
                         self.assertGreater(float(np.max(np.abs(audio))), 0.01)
                         output = provider.generate(text, root / f"{language}.wav")
                         with wave.open(str(output), "rb") as wav_file:
                             self.assertEqual(wav_file.getnchannels(), 1)
                             self.assertEqual(wav_file.getsampwidth(), 2)
-                            self.assertEqual(wav_file.getframerate(), 22050)
-                            self.assertGreater(wav_file.getnframes(), 22050)
+                            self.assertEqual(wav_file.getframerate(), expected_rate)
+                            self.assertGreater(wav_file.getnframes(), expected_rate)
                         audio_format = QAudioFormat()
                         audio_format.setSampleRate(48000)
                         audio_format.setChannelCount(2)
                         audio_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
-                        converted = AudioPlayback._convert(chunks[0][0], 22050, audio_format)
+                        converted = AudioPlayback._convert(chunks[0][0], expected_rate, audio_format)
                         self.assertGreater(len(converted), 0)
                         self.assertEqual(len(converted) % audio_format.bytesPerFrame(), 0)
                         stop = threading.Event()

@@ -84,27 +84,28 @@ class PiperTTSProvider:
     }
     # Near-natural phoneme durations without changing the trained pitch.
     FRENCH_SYNTHESIS_SETTINGS = {**SYNTHESIS_SETTINGS, "length_scale": 1.02}
-    BUNDLED_FRENCH_DIRECTORY = Path("src/providers/tts/fr-siwis-medium")
+    BUNDLED_FRENCH_DIRECTORY = Path("src/providers/tts/fr-tom-medium")
     PUNCTUATION_PAUSES = {".": 0.24, "?": 0.30, "!": 0.20,
                           ";": 0.14, ":": 0.14, ",": 0.08}
 
     PUBLIC_REPOSITORY = "rhasspy/piper-voices"
     VOICES_REVISION = "c10ece1aade47bb51c153c893d14e5bf8e5b7117"
-    MODEL_SIZE = 63201294
     LANGUAGES = {
         "en": {
             "voice": "en_US-lessac-medium",
+            "model_size": 63201294,
             "directory": "en/en_US/lessac/medium",
             "model_md5": "2fc642b535197b6305c7c8f92dc8b24f",
             "config_size": 4885,
             "config_md5": "c1f2b7bddefe113f3255ff9ef234cfd3",
         },
         "fr": {
-            "voice": "fr_FR-siwis-medium",
-            "directory": "fr/fr_FR/siwis/medium",
-            "model_md5": "20e876e8c839e9b11a26085858f2300c",
-            "config_size": 4875,
-            "config_md5": "a407e7e6901feb79c2ea2a5466076cce",
+            "voice": "fr_FR-tom-medium",
+            "model_size": 63511038,
+            "directory": "fr/fr_FR/tom/medium",
+            "model_md5": "5b460c2394a871e675f5c798af149412",
+            "config_size": 4959,
+            "config_md5": "964d58602df7adf76c2401b070f68ea2",
         },
     }
 
@@ -173,7 +174,7 @@ class PiperTTSProvider:
         return all(
             path.is_file() and path.stat().st_size == size
             for path, size in (
-                (self._model_path(language), self.MODEL_SIZE),
+                (self._model_path(language), info["model_size"]),
                 (self._config_path(language), info["config_size"]),
             )
         )
@@ -343,7 +344,7 @@ class PiperTTSProvider:
         return all(
             path.is_file() and path.stat().st_size == size
             for path, size in (
-                (directory / "model.onnx", self.MODEL_SIZE),
+                (directory / "model.onnx", self.LANGUAGES["fr"]["model_size"]),
                 (directory / "model.onnx.json", self.LANGUAGES["fr"]["config_size"]),
             )
         )

@@ -31,7 +31,7 @@ class ProviderTests(unittest.TestCase):
                         provider._model_path.touch()
                     elif isinstance(provider, TTSAdapter):
                         info = provider._language_info("en")
-                        for path, size in ((provider._model_path("en"), provider.MODEL_SIZE),
+                        for path, size in ((provider._model_path("en"), info["model_size"]),
                                            (provider._config_path("en"), info["config_size"])):
                             path.parent.mkdir(parents=True, exist_ok=True)
                             with path.open("wb") as resource:
