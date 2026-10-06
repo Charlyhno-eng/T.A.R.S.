@@ -99,12 +99,12 @@ class PiperTTSProvider:
             "config_md5": "c1f2b7bddefe113f3255ff9ef234cfd3",
         },
         "fr": {
-            "voice": "fr_FR-tom-medium",
-            "model_size": 63511038,
-            "directory": "fr/fr_FR/tom/medium",
-            "model_md5": "5b460c2394a871e675f5c798af149412",
-            "config_size": 4959,
-            "config_md5": "964d58602df7adf76c2401b070f68ea2",
+            "voice": "fr_FR-siwis-medium",
+            "model_size": 63201294,
+            "directory": "fr/fr_FR/siwis/medium",
+            "model_md5": "20e876e8c839e9b11a26085858f2300c",
+            "config_size": 4875,
+            "config_md5": "a407e7e6901feb79c2ea2a5466076cce",
         },
     }
 

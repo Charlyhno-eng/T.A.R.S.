@@ -62,7 +62,7 @@ class PiperTests(unittest.TestCase):
         for pool in ("intra_op", "inter_op"):
             self.assertEqual(options.get_session_config_entry(f"session.{pool}.allow_spinning"), "0")
 
-    def test_french_tom_downloads_into_user_data_and_restarts_offline(self) -> None:
+    def test_french_siwis_downloads_into_user_data_and_restarts_offline(self) -> None:
         self.provider.set_language("fr")
         self.assertFalse(self.provider.installed)
         with patch("huggingface_hub.hf_hub_download", side_effect=self.download_file) as download, patch(
@@ -72,7 +72,7 @@ class PiperTests(unittest.TestCase):
         self.assertEqual(download.call_count, 2)
         model = self.provider._model_path("fr")
         self.assertEqual(model.relative_to(self.provider._data_directory).as_posix(),
-                         "piper/fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx")
+                         "piper/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx")
         self.assertTrue(self.provider.installed)
         with patch("huggingface_hub.hf_hub_download", side_effect=AssertionError("network")), patch(
             "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
@@ -215,9 +215,9 @@ class PiperTests(unittest.TestCase):
             self.assertFalse(config.normalize_audio)
             self.assertEqual(config.volume, 1.25)
 
-    def test_french_tom_uses_own_pacing_and_processing_in_stream_and_wav(self) -> None:
+    def test_french_siwis_uses_own_pacing_and_processing_in_stream_and_wav(self) -> None:
         self.provider.set_language("fr")
-        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-tom-medium.onnx")
+        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-siwis-medium.onnx")
         rate = 22050
         audio = (0.6 * np.sin(2 * np.pi * 1000 * np.arange(rate) / rate)).astype(np.float32)
         chunk = SimpleNamespace(sample_channels=1, sample_rate=rate,
@@ -379,7 +379,7 @@ class RealPiperTests(unittest.TestCase):
                         self.assertIs(provider._model, model)
                         chunks = list(provider.generate_stream(text, threading.Event()))
                         self.assertGreaterEqual(len(chunks), 2)
-                        expected_rate = 44100 if language == "fr" else 22050
+                        expected_rate = 22050
                         self.assertEqual({rate for _, rate in chunks}, {expected_rate})
                         audio = np.frombuffer(b"".join(pcm for pcm, _ in chunks), dtype=np.float32)
                         self.assertGreater(audio.size, expected_rate)
