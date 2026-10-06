@@ -7,7 +7,6 @@ from queue import Queue
 from PySide6.QtCore import QObject, Signal, Slot
 
 from providers.tts.adapter import TTSAdapter
-from providers.tts.provider import TTSProvider
 from core.audio_playback import AudioPlayback
 
 
@@ -38,7 +37,7 @@ class TTSService(QObject):
     ) -> None:
         super().__init__(parent)
 
-        self._adapter: TTSProvider = TTSAdapter(language=language)
+        self._adapter = TTSAdapter(language=language)
 
         self._initialized = False
         self._initializing = False

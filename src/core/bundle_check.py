@@ -17,10 +17,10 @@ from core.paths import resource_directory
 from providers.stt.parakeet import ParakeetProvider
 from providers.tts.pocket_tts import PocketTTSProvider
 from providers.tts.adapter import TTSAdapter
-from providers.tts.provider import TTSProvider
 
 
-def _check_synthesis(provider: TTSProvider, language: str, output: Path) -> None:
+def _check_synthesis(provider: TTSAdapter | PocketTTSProvider, language: str,
+                     output: Path) -> None:
     """Exercise streaming inference and produce recorder-format audio for STT."""
     import numpy as np
     from scipy.io import wavfile
