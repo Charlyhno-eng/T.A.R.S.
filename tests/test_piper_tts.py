@@ -23,6 +23,10 @@ class PiperTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.provider = PiperTTSProvider(data_directory=Path(directory.name))
+        self.resources = Path(directory.name) / "bundle"
+        patcher = patch("providers.tts.piper_tts.resource_directory", return_value=self.resources)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         # Small fixture files exercise the real integrity checks and installation flow.
         languages = deepcopy(PiperTTSProvider.LANGUAGES)
         for info in languages.values():
@@ -44,6 +48,54 @@ class PiperTests(unittest.TestCase):
         self.assertIs(TTSAdapter, PiperTTSProvider)
         with self.assertRaises(ValueError):
             PiperTTSProvider("de")
+
+    def test_bundled_voice_is_preferred_and_ready_only_for_french_piper(self) -> None:
+        from providers.tts.pocket_tts import PocketTTSProvider
+
+        directory = self.resources / self.provider.BUNDLED_FRENCH_DIRECTORY
+        directory.mkdir(parents=True)
+        (directory / "model.onnx").write_bytes(b"onnx")
+        (directory / "model.onnx.json").write_bytes(b"{}")
+        # Previously downloaded voices must not shadow the supplied model.
+        cached_model = (self.provider._resources_directory / self.languages["fr"]["directory"]
+                        / f"{self.languages['fr']['voice']}.onnx")
+        cached_model.parent.mkdir(parents=True)
+        cached_model.write_bytes(b"onnx")
+        cached_model.with_suffix(".onnx.json").write_bytes(b"{}")
+        self.assertFalse(self.provider.installed)  # English still needs installation.
+        self.assertFalse(PocketTTSProvider("fr", data_directory=self.provider._data_directory).installed)
+        self.provider.set_language("fr")
+        self.assertTrue(self.provider.installed)
+        self.assertFalse(self.provider._installation_marker.exists())
+        with patch("huggingface_hub.hf_hub_download", side_effect=AssertionError("network")), patch(
+            "piper.PiperVoice.load", return_value=Mock()
+        ) as load:
+            self.provider.initialize()
+            load.assert_called_once_with(str(directory / "model.onnx"),
+                                         config_path=str(directory / "model.onnx.json"), use_cuda=False)
+            self.provider.download()
+            fresh = PiperTTSProvider("fr", data_directory=self.provider._data_directory / "fresh")
+            fresh.download()
+            self.assertTrue(fresh._installation_marker.is_file())
+        self.provider.set_language("en")
+        self.assertFalse(self.provider.installed)
+        self.assertEqual(self.provider._model_path("en").name, "en_US-lessac-medium.onnx")
+
+    def test_incomplete_bundled_voice_falls_back_to_downloaded_resources(self) -> None:
+        directory = self.resources / self.provider.BUNDLED_FRENCH_DIRECTORY
+        directory.mkdir(parents=True)
+        (directory / "model.onnx").write_bytes(b"bad")
+        (directory / "model.onnx.json").write_bytes(b"{}")
+        self.provider.set_language("fr")
+        self.assertFalse(self.provider.installed)
+        with patch("huggingface_hub.hf_hub_download", side_effect=self.download_file) as download, patch(
+            "piper.PiperVoice.load", return_value=Mock()
+        ):
+            self.provider.download()
+        self.assertEqual(download.call_count, 2)
+        self.assertTrue(self.provider.installed)
+        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-siwis-medium.onnx")
+        self.assertEqual((directory / "model.onnx").read_bytes(), b"bad")
 
     def test_downloads_selected_voice_and_retains_both_languages_and_pocket(self) -> None:
         pocket_file = self.provider._data_directory / "pocket_tts_installed.json"
@@ -172,7 +224,7 @@ class PiperTests(unittest.TestCase):
             self.assertFalse(config.normalize_audio)
             self.assertEqual(config.volume, 1.25)
 
-    def test_french_siwis_is_slower_and_processed_in_stream_and_wav(self) -> None:
+    def test_french_siwis_uses_own_pacing_and_processing_in_stream_and_wav(self) -> None:
         self.provider.set_language("fr")
         self.assertEqual(self.provider._model_path("fr").name, "fr_FR-siwis-medium.onnx")
         rate = 22050
@@ -197,7 +249,7 @@ class PiperTests(unittest.TestCase):
         )
         for call in self.provider._model.synthesize.call_args_list:
             config = call.kwargs["syn_config"]
-            self.assertEqual(config.length_scale, 1.06)
+            self.assertEqual(config.length_scale, 1.02)
             self.assertFalse(config.normalize_audio)
         self.provider.set_language("en")
         self.provider._model = Mock()

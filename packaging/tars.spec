@@ -4,7 +4,9 @@ from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, co
 
 root = Path(SPECPATH).parent
 datas = [(str(root / "src" / "ui"), "src/ui"),
-         (str(root / "assets" / "tars-mascot.png"), "assets")]
+         (str(root / "assets" / "tars-mascot.png"), "assets"),
+         (str(root / "src" / "providers" / "tts" / "fr-siwis-medium"),
+          "src/providers/tts/fr-siwis-medium")]
 hiddenimports = ["PySide6.QtQuick", "PySide6.QtMultimedia", "scipy.io.wavfile"]
 hiddenimports += collect_submodules("piper", filter=lambda name: not name.startswith("piper.train"),
                                    on_error="warn once")

@@ -5,7 +5,7 @@ T.A.R.S. is a personal voice assistant and extensible Jarvis-style foundation, b
 ## Capabilities
 
 - Hold-to-talk uses local Parakeet TDT 0.6B v3, streams concise GLM 5.3 Flash replies through the Z.AI API, then streams local TTS. Piper is the default speech engine; Pocket TTS is also supported and included in exports.
-- English and French are supported, and language selection persists. STT/TTS resources download from the interface and work offline; GLM requires internet and a Z.AI API key.
+- English and French are supported, and language selection persists. French Piper uses the bundled `src/providers/tts/fr-siwis-medium` voice; other STT/TTS resources download from the interface and work offline. GLM requires internet and a Z.AI API key.
 - The frameless, responsive interface has animated listening/processing/speaking states, saved window or full-screen startup settings, and a latest-exchange panel. Settings manage models, language, API credentials and application export.
 - A saved global hold-to-talk shortcut and tray operation are supported on Linux X11, Windows and macOS. Without a tray, closing quits.
 

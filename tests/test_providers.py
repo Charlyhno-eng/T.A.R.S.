@@ -14,6 +14,13 @@ from providers.tts.pocket_tts import PocketTTSProvider
 
 
 class ProviderTests(unittest.TestCase):
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        patcher = patch("providers.tts.piper_tts.resource_directory", return_value=Path(directory.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_local_installation_remains_available_after_restart(self) -> None:
         for adapter in (STTAdapter, TTSAdapter, PocketTTSProvider):
             with self.subTest(adapter=adapter), tempfile.TemporaryDirectory() as directory:
