@@ -8,11 +8,10 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from core.exporter import copy_bundle, host_platform, new_export_directory
-from core.native_shortcut import NativeShortcut, WindowsEventFilter
+from core.native_shortcut import NativeShortcut
 from core.paths import resource_directory, temporary_directory
 from core.settings import Settings
 from core.export_service import ExportService
