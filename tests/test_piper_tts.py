@@ -240,7 +240,10 @@ class PiperTests(unittest.TestCase):
         )
         for call in self.provider._model.synthesize.call_args_list:
             config = call.kwargs["syn_config"]
-            self.assertEqual(config.length_scale, 1.02)
+            self.assertIsNone(config.length_scale)  # Use the installed voice's defaults.
+            self.assertIsNone(config.noise_scale)
+            self.assertIsNone(config.noise_w_scale)
+            self.assertEqual(config.volume, 1.0)
             self.assertFalse(config.normalize_audio)
         self.provider.set_language("en")
         self.provider._model = Mock()

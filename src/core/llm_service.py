@@ -10,15 +10,16 @@ from providers.llm.adapter import LLMAdapter
 
 
 class SpeechTextBuffer:
-    """Start with a short fragment, then preserve sentence intonation."""
+    """Buffer speech at sentence boundaries, with an optional early fragment."""
 
     FIRST_CHUNK_LIMIT = 40
     CLAUSE_LIMIT = 240
     WORD_LIMIT = 400
 
-    def __init__(self) -> None:
+    def __init__(self, *, early_fragment: bool = True) -> None:
         self.pending = ""
         self._started = False
+        self._early_fragment = early_fragment
 
     def add(self, delta: str) -> list[str]:
         self.pending += delta
@@ -28,7 +29,7 @@ class SpeechTextBuffer:
             boundary = re.search(r"[.!?\n][\"'»”)]*\s+", self.pending)
             if boundary:
                 end = boundary.end()
-            elif not self._started:
+            elif not self._started and self._early_fragment:
                 # Never send individual tokens or split a word to TTS. A short
                 # opening phrase lets synthesis overlap the rest of the reply.
                 clause = re.search(r"[,;:][\"'»”)]*\s+", self.pending)
@@ -126,7 +127,9 @@ class LLMService(QObject):
                         request_id: int | None = None) -> None:
         request_id = self._request_id if request_id is None else request_id
         parts: list[str] = []
-        buffer = SpeechTextBuffer()
+        # Siwis needs the full opening sentence for continuous prosody. Keep
+        # streaming later sentences while synthesis/playback are in progress.
+        buffer = SpeechTextBuffer(early_fragment=language != "fr")
         stream_method = getattr(self._provider, "stream", None)
         chunks = None
         try:

@@ -82,8 +82,15 @@ class PiperTTSProvider:
         "normalize_audio": False,
         "volume": 1.25,
     }
-    # Near-natural phoneme durations without changing the trained pitch.
-    FRENCH_SYNTHESIS_SETTINGS = {**SYNTHESIS_SETTINGS, "length_scale": 1.02}
+    # Use Siwis's own trained timing and noise settings. Avoid boosting peaks
+    # into Piper's hard clip before the gentle French compressor can act.
+    FRENCH_SYNTHESIS_SETTINGS = {
+        **SYNTHESIS_SETTINGS,
+        "length_scale": None,
+        "noise_scale": None,
+        "noise_w_scale": None,
+        "volume": 1.0,
+    }
     PUNCTUATION_PAUSES = {".": 0.24, "?": 0.30, "!": 0.20,
                           ";": 0.14, ":": 0.14, ",": 0.08}
 

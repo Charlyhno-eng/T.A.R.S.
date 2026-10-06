@@ -83,7 +83,7 @@ class StreamingPipelineTests(unittest.TestCase):
             time.sleep(0.005)
         self.assertTrue(condition())
 
-    def test_opening_fragment_is_played_before_llm_finishes_first_sentence(self) -> None:
+    def test_french_first_sentence_is_played_before_llm_finishes_reply(self) -> None:
         release = threading.Event()
         pcm_produced = threading.Event()
 
@@ -91,10 +91,10 @@ class StreamingPipelineTests(unittest.TestCase):
             def stream(self, *args):
                 yield "Bonjour je peux "
                 yield "vous aider à préparer "
-                yield "votre voyage"
+                yield "votre voyage. "
                 if not release.wait(3):
                     raise RuntimeError("Test timed out")
-                yield ". Ça va ?"
+                yield "Ça va ?"
 
         def generate(text, stop):
             pcm_produced.set()
@@ -130,6 +130,10 @@ class StreamingPipelineTests(unittest.TestCase):
                 llm.respond("Salut", "fr")
                 self.wait_until(lambda: bool(started))
                 self.assertTrue(pcm_produced.is_set())
+                adapter.return_value.generate_stream.assert_called_once_with(
+                    "Bonjour je peux vous aider à préparer votre voyage.",
+                    tts._stop_event,
+                )
                 self.assertFalse(release.is_set())
                 self.assertFalse(finished)
                 # A temporary underrun must not allow another conversation.
@@ -141,7 +145,7 @@ class StreamingPipelineTests(unittest.TestCase):
                 release.set()
                 self.wait_until(lambda: bool(finished))
                 self.assertEqual([call.args[0] for call in adapter.return_value.generate_stream.call_args_list],
-                                 ["Bonjour je peux vous aider à préparer", "votre voyage.", "Ça va ?"])
+                                 ["Bonjour je peux vous aider à préparer votre voyage.", "Ça va ?"])
                 self.assertEqual(llm._history[-1]["content"],
                                  "Bonjour je peux vous aider à préparer votre voyage. Ça va ?")
             finally:
@@ -233,6 +237,34 @@ class StreamingPipelineTests(unittest.TestCase):
         self.assertGreater(len(chunks), 1)
         self.assertTrue(all(len(chunk) <= 400 for chunk in chunks))
         self.assertEqual(" ".join([*chunks, buffer.finish()]), text.strip())
+
+    def test_french_opening_keeps_clauses_together_across_token_boundaries(self) -> None:
+        text = (
+            "Bien sûr, je peux vous aider : le billet coûte 3,50 euros et nous "
+            "pouvons préparer votre prochain voyage ensemble."
+        )
+        for token_size in (1, 7, 40):
+            with self.subTest(token_size=token_size):
+                buffer = SpeechTextBuffer(early_fragment=False)
+                for start in range(0, len(text), token_size):
+                    self.assertEqual(buffer.add(text[start:start + token_size]), [])
+                self.assertEqual(buffer.add(" La suite"), [text])
+                self.assertEqual(buffer.finish(), "La suite")
+                self.assertEqual(buffer.finish(), "")
+
+    def test_french_long_opening_still_splits_at_clauses_or_words(self) -> None:
+        for text in (
+            "Nous pouvons examiner ces détails ensemble " * 6 + ", puis continuer " * 20,
+            "Nous pouvons examiner ces détails ensemble " * 25,
+        ):
+            with self.subTest(text=text):
+                buffer = SpeechTextBuffer(early_fragment=False)
+                chunks = []
+                for character in text:
+                    chunks.extend(buffer.add(character))
+                self.assertTrue(chunks)
+                self.assertTrue(all(len(chunk) <= buffer.WORD_LIMIT for chunk in chunks))
+                self.assertEqual(" ".join([*chunks, buffer.finish()]), text.strip())
 
     def test_sentences_after_opening_keep_their_clauses_and_intonation(self) -> None:
         for text in (
