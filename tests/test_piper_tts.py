@@ -23,10 +23,6 @@ class PiperTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.provider = PiperTTSProvider(data_directory=Path(directory.name))
-        self.resources = Path(directory.name) / "bundle"
-        patcher = patch("providers.tts.piper_tts.resource_directory", return_value=self.resources)
-        patcher.start()
-        self.addCleanup(patcher.stop)
         # Small fixture files exercise the real integrity checks and installation flow.
         languages = deepcopy(PiperTTSProvider.LANGUAGES)
         for info in languages.values():
@@ -66,43 +62,7 @@ class PiperTests(unittest.TestCase):
         for pool in ("intra_op", "inter_op"):
             self.assertEqual(options.get_session_config_entry(f"session.{pool}.allow_spinning"), "0")
 
-    def test_bundled_voice_is_preferred_and_ready_only_for_french_piper(self) -> None:
-        from providers.tts.pocket_tts import PocketTTSProvider
-
-        directory = self.resources / self.provider.BUNDLED_FRENCH_DIRECTORY
-        directory.mkdir(parents=True)
-        (directory / "model.onnx").write_bytes(b"onnx")
-        (directory / "model.onnx.json").write_bytes(b"{}")
-        # Previously downloaded voices must not shadow the supplied model.
-        cached_model = (self.provider._resources_directory / self.languages["fr"]["directory"]
-                        / f"{self.languages['fr']['voice']}.onnx")
-        cached_model.parent.mkdir(parents=True)
-        cached_model.write_bytes(b"onnx")
-        cached_model.with_suffix(".onnx.json").write_bytes(b"{}")
-        self.assertFalse(self.provider.installed)  # English still needs installation.
-        self.assertFalse(PocketTTSProvider("fr", data_directory=self.provider._data_directory).installed)
-        self.provider.set_language("fr")
-        self.assertTrue(self.provider.installed)
-        self.assertFalse(self.provider._installation_marker.exists())
-        with patch("huggingface_hub.hf_hub_download", side_effect=AssertionError("network")), patch(
-            "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
-        ) as load:
-            self.provider.initialize()
-            load.assert_called_once_with(str(directory / "model.onnx"),
-                                         config_path=str(directory / "model.onnx.json"))
-            self.provider.download()
-            fresh = PiperTTSProvider("fr", data_directory=self.provider._data_directory / "fresh")
-            fresh.download()
-            self.assertTrue(fresh._installation_marker.is_file())
-        self.provider.set_language("en")
-        self.assertFalse(self.provider.installed)
-        self.assertEqual(self.provider._model_path("en").name, "en_US-lessac-medium.onnx")
-
-    def test_incomplete_bundled_voice_falls_back_to_downloaded_resources(self) -> None:
-        directory = self.resources / self.provider.BUNDLED_FRENCH_DIRECTORY
-        directory.mkdir(parents=True)
-        (directory / "model.onnx").write_bytes(b"bad")
-        (directory / "model.onnx.json").write_bytes(b"{}")
+    def test_french_tom_downloads_into_user_data_and_restarts_offline(self) -> None:
         self.provider.set_language("fr")
         self.assertFalse(self.provider.installed)
         with patch("huggingface_hub.hf_hub_download", side_effect=self.download_file) as download, patch(
@@ -110,9 +70,24 @@ class PiperTests(unittest.TestCase):
         ):
             self.provider.download()
         self.assertEqual(download.call_count, 2)
+        model = self.provider._model_path("fr")
+        self.assertEqual(model.relative_to(self.provider._data_directory).as_posix(),
+                         "piper/fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx")
         self.assertTrue(self.provider.installed)
-        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-tom-medium.onnx")
-        self.assertEqual((directory / "model.onnx").read_bytes(), b"bad")
+        with patch("huggingface_hub.hf_hub_download", side_effect=AssertionError("network")), patch(
+            "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
+        ) as load:
+            restarted = PiperTTSProvider("fr", data_directory=self.provider._data_directory)
+            restarted.initialize()
+            load.assert_called_once_with(str(model), config_path=str(model.with_suffix(".onnx.json")))
+        model.write_bytes(b"bad")
+        self.assertFalse(restarted.installed)
+        with patch("huggingface_hub.hf_hub_download", side_effect=self.download_file) as download, patch(
+            "providers.tts.piper_tts.PiperTTSProvider._load_voice", return_value=Mock()
+        ):
+            restarted.download()
+        self.assertTrue(download.call_args_list[0].kwargs["force_download"])
+        self.assertTrue(restarted.installed)
 
     def test_downloads_selected_voice_and_retains_both_languages_and_pocket(self) -> None:
         pocket_file = self.provider._data_directory / "pocket_tts_installed.json"

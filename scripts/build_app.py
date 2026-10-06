@@ -45,7 +45,7 @@ def main() -> int:
     print(f"Export ready: {artifact}", flush=True)
     size = sum(path.stat().st_size for path in artifact.rglob("*")
                if path.is_file() and not path.is_symlink())
-    print(f"Bundle size: {size / (1024 ** 2):.1f} MiB (French Piper voice included; downloaded models stored separately)", flush=True)
+    print(f"Bundle size: {size / (1024 ** 2):.1f} MiB (voice models downloaded separately from the application)", flush=True)
     lock.unlock()
     return 0
 

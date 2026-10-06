@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-from core.paths import data_directory as user_data_directory, resource_directory
+from core.paths import data_directory as user_data_directory
 from core.runtime_resources import cpu_threads, release_unused_memory
 
 
@@ -84,7 +84,6 @@ class PiperTTSProvider:
     }
     # Near-natural phoneme durations without changing the trained pitch.
     FRENCH_SYNTHESIS_SETTINGS = {**SYNTHESIS_SETTINGS, "length_scale": 1.02}
-    BUNDLED_FRENCH_DIRECTORY = Path("src/providers/tts/fr-tom-medium")
     PUNCTUATION_PAUSES = {".": 0.24, "?": 0.30, "!": 0.20,
                           ";": 0.14, ":": 0.14, ",": 0.08}
 
@@ -124,9 +123,7 @@ class PiperTTSProvider:
 
     @property
     def installed(self) -> bool:
-        return self.resources_available(self._language) and (
-            self._bundled_voice_available(self._language) or self._installation_marker.is_file()
-        )
+        return self.resources_available(self._language) and self._installation_marker.is_file()
 
     @property
     def initialized(self) -> bool:
@@ -181,10 +178,6 @@ class PiperTTSProvider:
 
     def _download_resources(self, language: str,
                             on_status: Callable[[str], None] | None = None) -> None:
-        if self._bundled_voice_available(language):
-            if on_status:
-                on_status("Voix française Piper disponible localement.")
-            return
         from huggingface_hub import hf_hub_download
 
         info = self._language_info(language)
@@ -330,21 +323,7 @@ class PiperTTSProvider:
 
     def _model_path(self, language: str) -> Path:
         info = self._language_info(language)
-        if self._bundled_voice_available(language):
-            return resource_directory() / self.BUNDLED_FRENCH_DIRECTORY / "model.onnx"
         return self._resources_directory / info["directory"] / f"{info['voice']}.onnx"
 
     def _config_path(self, language: str) -> Path:
         return self._model_path(language).with_suffix(".onnx.json")
-
-    def _bundled_voice_available(self, language: str) -> bool:
-        if language != "fr":
-            return False
-        directory = resource_directory() / self.BUNDLED_FRENCH_DIRECTORY
-        return all(
-            path.is_file() and path.stat().st_size == size
-            for path, size in (
-                (directory / "model.onnx", self.LANGUAGES["fr"]["model_size"]),
-                (directory / "model.onnx.json", self.LANGUAGES["fr"]["config_size"]),
-            )
-        )
