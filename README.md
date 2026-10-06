@@ -23,7 +23,7 @@ The key is stored separately at `~/.tars/config/llm_api_key` with user-only perm
 
 ## Voices and providers
 
-Piper uses Lessac medium (`en_US-lessac-medium`) for English and Siwis medium (`fr_FR-siwis-medium`) for French. Its conversational pacing, punctuation pauses and preserved volume dynamics apply to streaming and WAV output with installed voices. Piper's engine is GPL-3.0; see the [Lessac](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD) and [Siwis](https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD) voice licenses.
+Piper uses Lessac medium (`en_US-lessac-medium`) for English and Siwis medium (`fr_FR-siwis-medium`) for French. Its conversational pacing and punctuation pauses apply to streaming and WAV output with installed voices. French uses 6% longer phoneme durations, gentle compression (1.5:1, −18 dBFS, 6 dB soft knee, 10 ms attack/120 ms release) and light EQ (+1 dB at 180 Hz, −1.5 dB at 3.5 kHz) for a warmer, smoother delivery, without per-sentence normalization. These adjustments run locally and require no extra downloads. Piper's engine is GPL-3.0; see the [Lessac](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD) and [Siwis](https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD) voice licenses.
 
 Pocket TTS remains available in `src/providers/tts/pocket_tts.py`, and its engine is included in application exports. To select it instead of default Piper, change the import in `src/providers/tts/adapter.py` to:
 

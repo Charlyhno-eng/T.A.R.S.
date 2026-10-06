@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from providers.tts.adapter import TTSAdapter
-from providers.tts.piper_tts import PiperTTSProvider
+from providers.tts.piper_tts import PiperTTSProvider, _FrenchAudioProcessor
 
 
 class PiperTests(unittest.TestCase):
@@ -171,6 +171,78 @@ class PiperTests(unittest.TestCase):
             self.assertIsInstance(config, SynthesisConfig)
             self.assertFalse(config.normalize_audio)
             self.assertEqual(config.volume, 1.25)
+
+    def test_french_siwis_is_slower_and_processed_in_stream_and_wav(self) -> None:
+        self.provider.set_language("fr")
+        self.assertEqual(self.provider._model_path("fr").name, "fr_FR-siwis-medium.onnx")
+        rate = 22050
+        audio = (0.6 * np.sin(2 * np.pi * 1000 * np.arange(rate) / rate)).astype(np.float32)
+        chunk = SimpleNamespace(sample_channels=1, sample_rate=rate,
+                                audio_float_array=audio, phonemes=["a", "."])
+        self.provider._model = Mock()
+        self.provider._model.config.sample_rate = rate
+        self.provider._model.synthesize.side_effect = lambda *args, **kwargs: iter([chunk, chunk])
+        streamed = np.frombuffer(b"".join(
+            pcm for pcm, _ in self.provider.generate_stream("Bonjour. À bientôt.", threading.Event())
+        ), dtype=np.float32)
+        self.assertFalse(np.array_equal(streamed[:audio.size], audio))
+        # The attack deliberately preserves the onset; sustained peaks soften.
+        self.assertLess(np.max(np.abs(streamed[rate // 2:rate])), np.max(np.abs(audio)))
+        self.assertGreater(streamed.size, 2 * audio.size)  # Punctuation pauses remain.
+        output = self.provider.generate("Bonjour. À bientôt.", self.provider._data_directory / "fr.wav")
+        with wave.open(str(output), "rb") as wav_file:
+            pcm = wav_file.readframes(wav_file.getnframes())
+        np.testing.assert_array_equal(
+            np.frombuffer(pcm, dtype=np.int16), (streamed * 32767).astype(np.int16)
+        )
+        for call in self.provider._model.synthesize.call_args_list:
+            config = call.kwargs["syn_config"]
+            self.assertEqual(config.length_scale, 1.06)
+            self.assertFalse(config.normalize_audio)
+        self.provider.set_language("en")
+        self.provider._model = Mock()
+        self.provider._model.synthesize.return_value = iter([chunk])
+        pcm, _ = next(self.provider.generate_stream("Hello.", threading.Event()))
+        np.testing.assert_array_equal(np.frombuffer(pcm, dtype=np.float32)[:audio.size], audio)
+        self.assertEqual(self.provider._model.synthesize.call_args.kwargs["syn_config"].length_scale, 1.0)
+
+
+class FrenchAudioTests(unittest.TestCase):
+    def test_processing_is_independent_of_chunk_boundaries_and_resets_per_utterance(self) -> None:
+        rate = 22050
+        audio = (0.5 * np.sin(2 * np.pi * 180 * np.arange(rate) / rate)).astype(np.float32)
+        whole = _FrenchAudioProcessor(rate).process(audio)
+        processor = _FrenchAudioProcessor(rate)
+        chunks = [processor.process(chunk) for chunk in np.array_split(audio, 17)]
+        np.testing.assert_array_equal(np.concatenate(chunks), whole)
+        np.testing.assert_array_equal(_FrenchAudioProcessor(rate).process(audio), whole)
+        self.assertEqual(whole.dtype, np.float32)
+        self.assertEqual(whole.size, audio.size)
+        self.assertEqual(processor.process(np.array([], dtype=np.float32)).size, 0)
+
+    def test_eq_is_subtle_and_compression_preserves_quiet_audio_and_silence(self) -> None:
+        rate = 22050
+        for frequency, expected_db in ((180, 1.0), (3500, -1.5)):
+            with self.subTest(frequency=frequency):
+                quiet = 0.01 * np.sin(2 * np.pi * frequency * np.arange(rate) / rate)
+                processed = _FrenchAudioProcessor(rate).process(quiet)
+                gain_db = 20 * np.log10(np.linalg.norm(processed[rate // 2:])
+                                        / np.linalg.norm(quiet[rate // 2:]))
+                self.assertAlmostEqual(gain_db, expected_db, delta=0.1)
+        for amplitude in (0.03, 0.6):
+            processor = _FrenchAudioProcessor(rate)
+            audio = np.full(rate, amplitude, dtype=np.float32)
+            processed = processor.process(audio)
+            if amplitude == 0.03:
+                self.assertAlmostEqual(float(processed[-1]), amplitude, places=6)
+            else:
+                self.assertLess(float(processed[-1]), amplitude * 0.8)
+                self.assertGreater(float(processed[-1]), amplitude * 0.5)
+            silence = processor.process(np.zeros(rate, dtype=np.float32))
+            np.testing.assert_allclose(silence[rate // 2:], 0, atol=1e-12)
+        loud = _FrenchAudioProcessor(rate).process(np.array([4.0, -4.0, 0.0]))
+        self.assertTrue(np.isfinite(loud).all())
+        self.assertLessEqual(float(np.max(np.abs(loud))), 1.0)
 
 
 @unittest.skipUnless(os.environ.get("TARS_TEST_PIPER") == "1",

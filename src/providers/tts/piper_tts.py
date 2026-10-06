@@ -15,6 +15,59 @@ from core.paths import data_directory as user_data_directory
 logger = logging.getLogger("TARS.PiperTTS")
 
 
+class _FrenchAudioProcessor:
+    """Subtle EQ and compression, retaining state between streamed chunks."""
+
+    def __init__(self, sample_rate: int) -> None:
+        import numpy as np
+
+        self.sample_rate = sample_rate
+        # Broad peaking filters: a little warmth and less upper-mid harshness.
+        sections = []
+        for frequency, gain_db in ((180.0, 1.0), (3500.0, -1.5)):
+            omega = 2 * np.pi * min(frequency, sample_rate * 0.45) / sample_rate
+            amplitude = 10 ** (gain_db / 40)
+            alpha = np.sin(omega) / 2  # Q = 1.
+            cosine = np.cos(omega)
+            section = np.array([
+                1 + alpha * amplitude, -2 * cosine, 1 - alpha * amplitude,
+                1 + alpha / amplitude, -2 * cosine, 1 - alpha / amplitude,
+            ])
+            sections.append(section / section[3])
+        self._eq = np.array(sections)
+        self._eq_state = np.zeros((len(sections), 2))
+        self._envelope = 0.0
+        self._attack = np.exp(-1 / (sample_rate * 0.010))
+        self._release = np.exp(-1 / (sample_rate * 0.120))
+
+    def process(self, audio: Any) -> Any:
+        import numpy as np
+        from scipy.signal import sosfilt
+
+        if not audio.size:
+            return audio.astype(np.float32, copy=False)
+        filtered, self._eq_state = sosfilt(self._eq, audio, zi=self._eq_state)
+        envelope = np.empty(filtered.size)
+        level = self._envelope
+        for index, peak in enumerate(np.abs(filtered)):
+            coefficient = self._attack if peak > level else self._release
+            level = coefficient * level + (1 - coefficient) * peak
+            envelope[index] = level
+        self._envelope = level
+
+        # A 1.5:1 compressor at -18 dBFS with a 6 dB soft knee. No makeup
+        # gain or normalization: quiet passages and silence stay quiet.
+        above_threshold = 20 * np.log10(np.maximum(envelope, 1e-12)) + 18
+        knee = 6.0
+        slope = 1 / 1.5 - 1
+        gain_db = np.where(
+            above_threshold <= -knee / 2, 0.0,
+            np.where(above_threshold >= knee / 2, slope * above_threshold,
+                     slope * (above_threshold + knee / 2) ** 2 / (2 * knee)),
+        )
+        return np.clip(filtered * 10 ** (gain_db / 20), -1.0, 1.0).astype(np.float32)
+
+
 class PiperTTSProvider:
     """Local CPU synthesis with separate downloadable French and English voices."""
 
@@ -28,6 +81,8 @@ class PiperTTSProvider:
         "normalize_audio": False,
         "volume": 1.25,
     }
+    # Stretch phoneme durations slightly without changing the trained pitch.
+    FRENCH_SYNTHESIS_SETTINGS = {**SYNTHESIS_SETTINGS, "length_scale": 1.06}
     PUNCTUATION_PAUSES = {".": 0.24, "?": 0.30, "!": 0.20,
                           ";": 0.14, ":": 0.14, ",": 0.08}
 
@@ -186,13 +241,20 @@ class PiperTTSProvider:
             return
         from piper import SynthesisConfig
 
-        syn_config = SynthesisConfig(**self.SYNTHESIS_SETTINGS)
+        french = (self._loaded_language or self._language) == "fr"
+        settings = self.FRENCH_SYNTHESIS_SETTINGS if french else self.SYNTHESIS_SETTINGS
+        syn_config = SynthesisConfig(**settings)
+        processor = None
         for chunk in self._model.synthesize(text.strip(), syn_config=syn_config):
             if stop.is_set():
                 break
             if chunk.sample_channels != 1:
                 raise RuntimeError("Piper TTS doit produire un flux audio mono.")
             audio = self._add_pause(chunk.audio_float_array, chunk.sample_rate, chunk.phonemes)
+            if french:
+                if processor is None or processor.sample_rate != chunk.sample_rate:
+                    processor = _FrenchAudioProcessor(chunk.sample_rate)
+                audio = processor.process(audio)
             yield audio.astype("float32", copy=False).tobytes(), chunk.sample_rate
             if stop.is_set():
                 break
