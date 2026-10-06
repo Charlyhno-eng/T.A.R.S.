@@ -10,13 +10,15 @@ from providers.llm.adapter import LLMAdapter
 
 
 class SpeechTextBuffer:
-    """Keep sentence intonation, using clauses only when a sentence grows long."""
+    """Start with a short fragment, then preserve sentence intonation."""
 
+    FIRST_CHUNK_LIMIT = 40
     CLAUSE_LIMIT = 240
     WORD_LIMIT = 400
 
     def __init__(self) -> None:
         self.pending = ""
+        self._started = False
 
     def add(self, delta: str) -> list[str]:
         self.pending += delta
@@ -26,6 +28,19 @@ class SpeechTextBuffer:
             boundary = re.search(r"[.!?\n][\"'»”)]*\s+", self.pending)
             if boundary:
                 end = boundary.end()
+            elif not self._started:
+                # Never send individual tokens or split a word to TTS. A short
+                # opening phrase lets synthesis overlap the rest of the reply.
+                clause = re.search(r"[,;:][\"'»”)]*\s+", self.pending)
+                if clause:
+                    end = clause.end()
+                elif len(self.pending) >= self.FIRST_CHUNK_LIMIT:
+                    spaces = list(re.finditer(r"\s+", self.pending[:self.FIRST_CHUNK_LIMIT]))
+                    if not spaces:
+                        break
+                    end = spaces[-1].end()
+                else:
+                    break
             elif len(self.pending) >= self.CLAUSE_LIMIT:
                 # A comma/semicolon keeps continuation intonation; arbitrary
                 # short fragments make Piper repeatedly sound like it is done.
@@ -44,6 +59,7 @@ class SpeechTextBuffer:
             chunk, self.pending = self.pending[:end].strip(), self.pending[end:]
             if chunk:
                 chunks.append(chunk)
+                self._started = True
         return chunks
 
     def finish(self) -> str:

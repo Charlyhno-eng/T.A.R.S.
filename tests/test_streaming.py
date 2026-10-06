@@ -83,16 +83,18 @@ class StreamingPipelineTests(unittest.TestCase):
             time.sleep(0.005)
         self.assertTrue(condition())
 
-    def test_first_sentence_is_synthesized_and_played_before_llm_finishes(self) -> None:
+    def test_opening_fragment_is_played_before_llm_finishes_first_sentence(self) -> None:
         release = threading.Event()
         pcm_produced = threading.Event()
 
         class Provider:
             def stream(self, *args):
-                yield "Bonjour. "
+                yield "Bonjour je peux "
+                yield "vous aider à préparer "
+                yield "votre voyage"
                 if not release.wait(3):
                     raise RuntimeError("Test timed out")
-                yield "Ça va ?"
+                yield ". Ça va ?"
 
         def generate(text, stop):
             pcm_produced.set()
@@ -139,8 +141,9 @@ class StreamingPipelineTests(unittest.TestCase):
                 release.set()
                 self.wait_until(lambda: bool(finished))
                 self.assertEqual([call.args[0] for call in adapter.return_value.generate_stream.call_args_list],
-                                 ["Bonjour.", "Ça va ?"])
-                self.assertEqual(llm._history[-1]["content"], "Bonjour. Ça va ?")
+                                 ["Bonjour je peux vous aider à préparer", "votre voyage.", "Ça va ?"])
+                self.assertEqual(llm._history[-1]["content"],
+                                 "Bonjour je peux vous aider à préparer votre voyage. Ça va ?")
             finally:
                 release.set()
                 llm.cancel()
@@ -231,7 +234,7 @@ class StreamingPipelineTests(unittest.TestCase):
         self.assertTrue(all(len(chunk) <= 400 for chunk in chunks))
         self.assertEqual(" ".join([*chunks, buffer.finish()]), text.strip())
 
-    def test_normal_sentences_keep_their_clauses_and_intonation(self) -> None:
+    def test_sentences_after_opening_keep_their_clauses_and_intonation(self) -> None:
         for text in (
             "I can help: tell me what you need; we can work through the details together "
             "and find a simple solution that suits your plans for tomorrow.",
@@ -241,6 +244,7 @@ class StreamingPipelineTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertGreater(len(text), 120)
                 buffer = SpeechTextBuffer()
+                self.assertEqual(buffer.add("Hello. "), ["Hello."])
                 for character in text:
                     self.assertEqual(buffer.add(character), [])
                 self.assertEqual(buffer.add(" "), [text])
@@ -248,11 +252,40 @@ class StreamingPipelineTests(unittest.TestCase):
 
     def test_long_sentences_prefer_clause_boundaries_and_keep_all_words(self) -> None:
         buffer = SpeechTextBuffer()
+        self.assertEqual(buffer.add("Hello. "), ["Hello."])
         clause = "Let's examine the details " * 8 + ","
         tail = " and then choose the solution that works best for you"
         text = clause + tail
         self.assertEqual(buffer.add(text), [clause])
         self.assertEqual(buffer.finish(), tail.strip())
+
+    def test_opening_fragment_preserves_words_with_arbitrary_token_boundaries(self) -> None:
+        for text in (
+            "I can help you plan a wonderful trip with your family tomorrow.",
+            "Je peux vous aider à préparer votre prochain voyage en famille.",
+            "The price is 3.50 euros and the address is https://example.com/page today.",
+        ):
+            with self.subTest(text=text):
+                buffer = SpeechTextBuffer()
+                chunks = []
+                for character in text:
+                    chunks.extend(buffer.add(character))
+                self.assertEqual(len(chunks), 1)
+                self.assertLessEqual(len(chunks[0]), buffer.FIRST_CHUNK_LIMIT)
+                chunks.append(buffer.finish())
+                self.assertEqual(" ".join(chunks), text)
+
+    def test_opening_clause_starts_early_and_short_or_unbroken_text_waits(self) -> None:
+        for opening in ("Bien sûr, ", "Of course: "):
+            with self.subTest(opening=opening):
+                buffer = SpeechTextBuffer()
+                self.assertEqual(buffer.add(opening), [opening.strip()])
+                self.assertEqual(buffer.add("the rest is still arriving"), [])
+                self.assertEqual(buffer.finish(), "the rest is still arriving")
+        for text in ("Salut", "x" * 80):
+            buffer = SpeechTextBuffer()
+            self.assertEqual(buffer.add(text), [])
+            self.assertEqual(buffer.finish(), text)
 
     def test_pcm_conversion_supports_native_stereo_integer_output(self) -> None:
         import numpy as np
