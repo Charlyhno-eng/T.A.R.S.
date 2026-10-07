@@ -16,6 +16,8 @@ from PySide6.QtTest import QTest
 
 from core.stt_service import STTService
 from core.tts_service import TTSService
+from core.model_standby import ModelStandby
+from core.assistant_controller import AssistantController
 
 
 class Model:
@@ -33,13 +35,15 @@ class ModelStandbyTests(unittest.TestCase):
             QTest.qWait(10)
         self.assertTrue(condition(), "Worker did not finish")
 
-    def test_stt_reloads_after_standby_and_releases_weights_even_on_error(self) -> None:
+    def test_stt_reuses_warm_weights_and_prepares_after_idle_release(self) -> None:
         adapter = Mock(installed=True)
+        adapter.model = None
         references = []
 
         def initialize(**kwargs):
-            adapter.model = Model()
-            references.append(weakref.ref(adapter.model))
+            if adapter.model is None:
+                adapter.model = Model()
+                references.append(weakref.ref(adapter.model))
 
         def release():
             adapter.model = None
@@ -63,19 +67,35 @@ class ModelStandbyTests(unittest.TestCase):
             service.initialize_async()
             self.wait_until(lambda: not service._workers)
             self.assertTrue(service.initialized)
-            self.assertTrue(all(reference() is None for reference in references))
-            for name in ("first.wav", "second.wav", "failed.wav"):
+            self.assertIsNotNone(references[0]())
+            for name in ("first.wav", "second.wav"):
                 path = Path(directory) / name
                 path.touch()
                 service.transcribe(path)
                 self.wait_until(lambda: not service._workers)
                 self.assertFalse(path.exists())
                 self.assertTrue(service.initialized)
-                self.assertTrue(all(reference() is None for reference in references))
+                self.assertEqual(len(references), 1)
+                self.assertIsNotNone(references[0]())
+            service._queue_idle_release(service._standby._revision)
+            self.wait_until(lambda: not service._workers)
+            self.assertIsNone(references[0]())
+            self.assertTrue(service.initialized)
+            service.prepare()
+            self.wait_until(lambda: not service._workers)
+            self.assertEqual(len(references), 2)
+            path = Path(directory) / "failed.wav"
+            path.touch()
+            service.transcribe(path)
+            self.wait_until(lambda: not service._workers)
+            self.assertFalse(path.exists())
+            service._queue_idle_release(service._standby._revision)
+            self.wait_until(lambda: not service._workers)
+            self.assertTrue(all(reference() is None for reference in references))
             self.assertEqual(transcripts, ["Bonjour.", "Bonjour."])
             self.assertEqual(errors, ["Inference failed"])
 
-    def test_hidden_tts_keeps_active_generation_alive_then_reloads_next_reply(self) -> None:
+    def test_hidden_tts_keeps_warm_voice_between_replies_then_expires(self) -> None:
         adapter = Mock(installed=True)
         entered, finish = threading.Event(), threading.Event()
         references = []
@@ -121,18 +141,27 @@ class ModelStandbyTests(unittest.TestCase):
                     finish.set()
                 self.wait_until(lambda: not service._workers and not service._speaking)
                 self.assertTrue(service.initialized)
-                self.assertIsNone(references[0]())
+                self.assertIsNotNone(references[0]())
                 self.assertEqual(audio, [b"first", b"second"])
                 service.begin_response()
                 service.speak("Another reply.")
                 service.finish_response()
                 self.wait_until(lambda: not service._workers and not service._speaking)
-                self.assertEqual(len(references), 2)
+                self.assertEqual(len(references), 1)
+                # Exercise the real delayed cleanup rather than unloading at
+                # every sentence/response boundary.
+                with patch.object(ModelStandby, "BACKGROUND_IDLE_SECONDS", 0.05):
+                    service.set_background(False)
+                    service.set_background(True)
+                    self.wait_until(lambda: adapter.model is None and not service._workers)
                 self.assertTrue(all(reference() is None for reference in references))
                 self.assertEqual(audio, [b"first", b"second"] * 2)
                 service.set_background(False)
                 self.assertTrue(service.initialized)
-                self.assertIsNone(adapter.model)  # Reopening does not reload unnecessarily.
+                service.prepare()
+                self.wait_until(lambda: not service._workers)
+                self.assertEqual(len(references), 2)
+                self.assertIsNotNone(adapter.model)
 
     def test_hidden_initialization_and_slow_shutdown_do_not_retain_a_voice(self) -> None:
         for shutdown in (False, True):
@@ -165,4 +194,74 @@ class ModelStandbyTests(unittest.TestCase):
                     finish.set()
                     self.wait_until(lambda: not service._workers)
                 self.assertEqual(service.initialized, not shutdown)
+                if not shutdown:
+                    adapter.shutdown.assert_not_called()
+                    service._queue_idle_release(service._standby._revision)
+                    self.wait_until(lambda: not service._workers)
                 adapter.shutdown.assert_called_once()
+
+    def test_stale_idle_cleanup_cannot_unload_a_new_request(self) -> None:
+        with patch("core.stt_service.STTAdapter") as provider:
+            service = STTService()
+            self.addCleanup(service.shutdown)
+            service.set_background(True)
+            revision = service._standby._revision
+            # Queue cleanup behind the provider lock, then begin recording.
+            with service._provider_lock:
+                service._queue_idle_release(revision)
+                service.set_active(True)
+            self.wait_until(lambda: not service._workers)
+            provider.return_value.release_model.assert_not_called()
+            service.set_active(False)
+            service._queue_idle_release(service._standby._revision)
+            self.wait_until(lambda: not service._workers)
+            provider.return_value.release_model.assert_called_once()
+
+    def test_idle_deadlines_pause_for_work_and_active_conversations(self) -> None:
+        with patch("core.model_standby.threading.Timer") as timer:
+            standby = ModelStandby(Mock())
+            standby.hold()
+            timer.assert_not_called()
+            standby.release()
+            self.assertEqual(timer.call_args.args[0], 120)
+            revision = standby._revision
+            self.assertTrue(standby.is_current(revision))
+            standby.set_active(True)
+            self.assertFalse(standby.is_current(revision))
+            timer.return_value.cancel.assert_called_once()
+            standby.set_background(True)
+            self.assertEqual(timer.call_count, 1)
+            standby.set_active(False)
+            self.assertEqual(timer.call_args.args[0], 30)
+            standby.close()
+            self.assertFalse(standby.is_current(standby._revision))
+
+    def test_recording_prewarms_models_and_reply_keeps_idle_cleanup_paused(self) -> None:
+        with patch("core.assistant_controller.Settings"), patch(
+            "core.assistant_controller.TTSService"
+        ) as tts, patch("core.assistant_controller.STTService") as stt, patch(
+            "core.assistant_controller.AudioRecorder"
+        ) as recorder, patch("core.assistant_controller.LLMService"):
+            controller = AssistantController()
+            controller._tts_ready = controller._stt_ready = True
+            controller.startListening()
+            recorder.return_value.start.assert_called_once()
+            for service in (tts.return_value, stt.return_value):
+                service.set_active.assert_called_once_with(True)
+                service.prepare.assert_called_once()
+            controller.stopListening()
+            self.assertEqual(controller.state, "thinking")
+            controller._set_state("speaking")
+            for service in (tts.return_value, stt.return_value):
+                self.assertTrue(all(call.args == (True,) for call in service.set_active.call_args_list))
+            controller._set_state("idle")
+            for service in (tts.return_value, stt.return_value):
+                service.set_active.assert_called_with(False)
+            controller.setWindowVisible(False)
+            for service in (tts.return_value, stt.return_value):
+                service.set_background.assert_called_once_with(True)
+                self.assertEqual(service.prepare.call_count, 1)
+            controller.setWindowVisible(True)
+            for service in (tts.return_value, stt.return_value):
+                service.set_background.assert_called_with(False)
+                self.assertEqual(service.prepare.call_count, 2)

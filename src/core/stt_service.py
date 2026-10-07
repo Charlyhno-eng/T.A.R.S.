@@ -9,6 +9,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 
 from providers.stt.adapter import STTAdapter
+from core.model_standby import ModelStandby
 
 
 logger = logging.getLogger("TARS.STT")
@@ -42,29 +43,57 @@ class STTService(QObject):
         self._workers: set[threading.Thread] = set()
         self._shutdown_requested = False
         self._resources_released = False
+        self._standby = ModelStandby(self._queue_idle_release)
 
-    def _start_worker(self, target: Callable, name: str, args: tuple = ()) -> None:
+    def _start_worker(self, target: Callable, name: str, args: tuple = (),
+                      *, idle: bool = False) -> None:
         with self._lock:
             if self._shutdown_requested:
                 return
-            worker = threading.Thread(target=self._run_worker, args=(target, args),
+            if not idle:
+                self._standby.hold()
+            worker = threading.Thread(target=self._run_worker, args=(target, args, idle),
                                       name=name, daemon=True)
             self._workers.add(worker)
             worker.start()
 
-    def _run_worker(self, target: Callable, args: tuple) -> None:
+    def _run_worker(self, target: Callable, args: tuple, idle: bool) -> None:
         try:
-            # Ready means available for another request, not resident in RAM.
-            # Serialize reloads and keep mappings alive until inference returns.
             with self._provider_lock:
-                try:
-                    target(*args)
-                finally:
-                    self._adapter.release_model()
+                target(*args)
         finally:
+            if not idle:
+                self._standby.release()
             with self._lock:
                 self._workers.discard(threading.current_thread())
             self._release_resources_if_stopped()
+
+    def _queue_idle_release(self, revision: int) -> None:
+        self._start_worker(self._release_idle_model, "TARS-STT-Standby",
+                           (revision,), idle=True)
+
+    def _release_idle_model(self, revision: int) -> None:
+        if self._standby.is_current(revision):
+            self._adapter.release_model()
+
+    def set_active(self, active: bool) -> None:
+        """Suspend idle cleanup throughout recording and the reply."""
+        self._standby.set_active(active)
+
+    def set_background(self, background: bool) -> None:
+        self._standby.set_background(background)
+
+    def prepare(self) -> None:
+        """Overlap a cold reload with microphone recording."""
+        if self.initialized:
+            self._start_worker(self._prepare_worker, "TARS-STT-Prepare")
+
+    def _prepare_worker(self) -> None:
+        try:
+            self._adapter.initialize()
+        except Exception:
+            # The transcription worker retries and reports any lasting error.
+            logger.exception("Unable to prewarm Parakeet.")
 
     def _release_resources_if_stopped(self) -> None:
         with self._lock:
@@ -175,6 +204,7 @@ class STTService(QObject):
 
     def shutdown(self) -> None:
         """Release file-backed weights only after their last worker stops."""
+        self._standby.close()
         with self._lock:
             self._shutdown_requested = True
             workers = tuple(self._workers)

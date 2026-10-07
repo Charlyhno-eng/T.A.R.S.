@@ -302,11 +302,17 @@ class AssistantController(QObject):
         self.responseChanged.emit()
         self._set_status("Parlez maintenant, puis relâchez le bouton.")
         self._set_state("listening")
+        self._stt_service.prepare()
+        self._tts_service.prepare()
 
     @Slot(bool)
     def setWindowVisible(self, visible: bool) -> None:
-        """Keep background voice access ready while releasing the idle engine."""
+        """Shorten idle retention when hidden; prewarm when reopening."""
+        self._stt_service.set_background(not visible)
         self._tts_service.set_background(not visible)
+        if visible:
+            self._stt_service.prepare()
+            self._tts_service.prepare()
 
     @Slot()
     def stopListening(self) -> None:
@@ -482,6 +488,9 @@ class AssistantController(QObject):
     def _set_state(self, value: str) -> None:
         if value != self._state:
             self._state = value
+            active = value in {"listening", "thinking", "speaking"}
+            self._stt_service.set_active(active)
+            self._tts_service.set_active(active)
             self.stateChanged.emit()
 
     def _set_status(self, value: str) -> None:

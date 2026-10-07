@@ -10,6 +10,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 
 from providers.tts.adapter import TTSAdapter
 from core.audio_playback import AudioPlayback
+from core.model_standby import ModelStandby
 
 
 logger = logging.getLogger("TARS.TTS")
@@ -50,10 +51,10 @@ class TTSService(QObject):
 
         self._lock = threading.Lock()
         self._provider_lock = threading.Lock()
-        self._background = False
         self._workers: set[threading.Thread] = set()
         self._shutdown_requested = False
         self._resources_released = False
+        self._standby = ModelStandby(self._queue_idle_release)
 
         self._session = 0
         self._text_queue: Queue[str | None] = Queue()
@@ -70,27 +71,25 @@ class TTSService(QObject):
         self._generationFailed.connect(self._on_generation_failed)
 
     def _start_worker(self, target: Callable, name: str,
-                      args: tuple = ()) -> threading.Thread | None:
+                      args: tuple = (), *, idle: bool = False) -> threading.Thread | None:
         with self._lock:
             if self._shutdown_requested:
                 return None
-            worker = threading.Thread(target=self._run_worker, args=(target, args),
+            if not idle:
+                self._standby.hold()
+            worker = threading.Thread(target=self._run_worker, args=(target, args, idle),
                                       name=name, daemon=True)
             self._workers.add(worker)
             worker.start()
             return worker
 
-    def _run_worker(self, target: Callable, args: tuple) -> None:
+    def _run_worker(self, target: Callable, args: tuple, idle: bool) -> None:
         try:
             with self._provider_lock:
-                try:
-                    target(*args)
-                finally:
-                    with self._lock:
-                        release = self._background and not self._shutdown_requested
-                    if release:
-                        self._adapter.shutdown()
+                target(*args)
         finally:
+            if not idle:
+                self._standby.release()
             with self._lock:
                 self._workers.discard(threading.current_thread())
             self._release_resources_if_stopped()
@@ -109,15 +108,30 @@ class TTSService(QObject):
             self._adapter.shutdown()
 
     def set_background(self, background: bool) -> None:
-        """Unload the voice off the UI thread once ongoing synthesis finishes."""
-        with self._lock:
-            if background == self._background or self._shutdown_requested:
-                return
-            self._background = background
-        if background:
-            # This worker waits behind loading or synthesis; readiness is kept
-            # so a hidden hold-to-talk request can reload the voice on demand.
-            self._start_worker(lambda: None, "TARS-TTS-Standby")
+        """Use a shorter idle grace period while the interface is hidden."""
+        self._standby.set_background(background)
+
+    def set_active(self, active: bool) -> None:
+        self._standby.set_active(active)
+
+    def _queue_idle_release(self, revision: int) -> None:
+        self._start_worker(self._release_idle_model, "TARS-TTS-Standby",
+                           (revision,), idle=True)
+
+    def _release_idle_model(self, revision: int) -> None:
+        if self._standby.is_current(revision):
+            self._adapter.shutdown()
+
+    def prepare(self) -> None:
+        """Load the voice while recording, transcription and GLM overlap."""
+        if self.initialized:
+            self._start_worker(self._prepare_worker, "TARS-TTS-Prepare")
+
+    def _prepare_worker(self) -> None:
+        try:
+            self._adapter.initialize()
+        except Exception:
+            logger.exception("Unable to prewarm the voice; synthesis will retry.")
 
     @property
     def initialized(self) -> bool:
@@ -386,6 +400,7 @@ class TTSService(QObject):
 
     def shutdown(self) -> None:
         """Stop synthesis before releasing provider resources."""
+        self._standby.close()
         with self._lock:
             self._shutdown_requested = True
             workers = tuple(self._workers)
