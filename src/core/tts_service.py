@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
+from collections.abc import Callable
 from queue import Queue
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -47,6 +49,11 @@ class TTSService(QObject):
         self._speaking = False
 
         self._lock = threading.Lock()
+        self._provider_lock = threading.Lock()
+        self._background = False
+        self._workers: set[threading.Thread] = set()
+        self._shutdown_requested = False
+        self._resources_released = False
 
         self._session = 0
         self._text_queue: Queue[str | None] = Queue()
@@ -61,6 +68,56 @@ class TTSService(QObject):
         self._audioChunk.connect(self._on_audio_chunk)
         self._generationFinished.connect(self._on_generation_finished)
         self._generationFailed.connect(self._on_generation_failed)
+
+    def _start_worker(self, target: Callable, name: str,
+                      args: tuple = ()) -> threading.Thread | None:
+        with self._lock:
+            if self._shutdown_requested:
+                return None
+            worker = threading.Thread(target=self._run_worker, args=(target, args),
+                                      name=name, daemon=True)
+            self._workers.add(worker)
+            worker.start()
+            return worker
+
+    def _run_worker(self, target: Callable, args: tuple) -> None:
+        try:
+            with self._provider_lock:
+                try:
+                    target(*args)
+                finally:
+                    with self._lock:
+                        release = self._background and not self._shutdown_requested
+                    if release:
+                        self._adapter.shutdown()
+        finally:
+            with self._lock:
+                self._workers.discard(threading.current_thread())
+            self._release_resources_if_stopped()
+
+    def _release_resources_if_stopped(self) -> None:
+        with self._lock:
+            if not self._shutdown_requested or self._workers:
+                return
+        with self._provider_lock:
+            with self._lock:
+                if (not self._shutdown_requested or self._workers
+                        or self._resources_released):
+                    return
+                self._resources_released = True
+                self._initialized = False
+            self._adapter.shutdown()
+
+    def set_background(self, background: bool) -> None:
+        """Unload the voice off the UI thread once ongoing synthesis finishes."""
+        with self._lock:
+            if background == self._background or self._shutdown_requested:
+                return
+            self._background = background
+        if background:
+            # This worker waits behind loading or synthesis; readiness is kept
+            # so a hidden hold-to-talk request can reload the voice on demand.
+            self._start_worker(lambda: None, "TARS-TTS-Standby")
 
     @property
     def initialized(self) -> bool:
@@ -82,7 +139,8 @@ class TTSService(QObject):
             if language == self._adapter.language:
                 return
             self._initialized = False
-        self._adapter.set_language(language)
+        with self._provider_lock:
+            self._adapter.set_language(language)
         self.stateChanged.emit("not_installed")
 
     def initialize_async(self) -> None:
@@ -96,7 +154,7 @@ class TTSService(QObject):
             return
 
         with self._lock:
-            if self._initialized or self._initializing:
+            if self._shutdown_requested or self._initialized or self._initializing:
                 return
 
             self._initializing = True
@@ -106,13 +164,7 @@ class TTSService(QObject):
             "Chargement du moteur vocal local..."
         )
 
-        thread = threading.Thread(
-            target=self._initialize_worker,
-            name="TARS-TTS-Init",
-            daemon=True,
-        )
-
-        thread.start()
+        self._start_worker(self._initialize_worker, "TARS-TTS-Init")
 
     def _initialize_worker(self) -> None:
         try:
@@ -157,7 +209,7 @@ class TTSService(QObject):
         """Install the voice engine using an explicit user action."""
 
         with self._lock:
-            if self._installing:
+            if self._shutdown_requested or self._installing:
                 return
 
             if self._speaking:
@@ -172,13 +224,7 @@ class TTSService(QObject):
             "Téléchargement du moteur vocal..."
         )
 
-        thread = threading.Thread(
-            target=self._download_worker,
-            name="TARS-TTS-Download",
-            daemon=True,
-        )
-
-        thread.start()
+        self._start_worker(self._download_worker, "TARS-TTS-Download")
 
     def _download_worker(self) -> None:
         try:
@@ -236,7 +282,7 @@ class TTSService(QObject):
     def begin_response(self) -> None:
         """Start one serialized synthesis worker while GLM is still responding."""
         with self._lock:
-            if not self._initialized or self._speaking:
+            if self._shutdown_requested or not self._initialized or self._speaking:
                 raise RuntimeError("Le moteur vocal n'est pas disponible.")
             # A cancelled generation must release the model before it is reused.
             if self._worker is not None and self._worker.is_alive():
@@ -248,13 +294,10 @@ class TTSService(QObject):
             self._stop_event = threading.Event()
             self._audio_slots = threading.Semaphore(self.MAX_PENDING_CHUNKS)
         self._playback.begin()
-        self._worker = threading.Thread(
-            target=self._speak_worker,
-            args=(session, self._text_queue, self._stop_event, self._audio_slots),
-            name="TARS-TTS-Speech",
-            daemon=True,
+        self._worker = self._start_worker(
+            self._speak_worker, "TARS-TTS-Speech",
+            (session, self._text_queue, self._stop_event, self._audio_slots),
         )
-        self._worker.start()
 
     @Slot(str)
     def speak(self, text: str) -> None:
@@ -270,6 +313,9 @@ class TTSService(QObject):
     def _speak_worker(self, session: int, texts: Queue[str | None],
                       stop: threading.Event, audio_slots: threading.Semaphore) -> None:
         try:
+            if stop.is_set():
+                return
+            self._adapter.initialize()
             while not stop.is_set():
                 text = texts.get()
                 if text is None or stop.is_set():
@@ -340,16 +386,16 @@ class TTSService(QObject):
 
     def shutdown(self) -> None:
         """Stop synthesis before releasing provider resources."""
-        self.cancel_response()
-        if self._worker is not None:
-            self._worker.join(timeout=5)
-            if self._worker.is_alive():
-                logger.warning("TTS is still stopping; leaving resources to its worker.")
-                return
-        try:
-            self._adapter.shutdown()
-        except Exception:
-            logger.exception("[T.A.R.S.][TTS] Erreur lors de l'arrêt.")
         with self._lock:
-            self._initialized = False
+            self._shutdown_requested = True
+            workers = tuple(self._workers)
+        self.cancel_response()
+        deadline = time.monotonic() + 5
+        for worker in workers:
+            worker.join(timeout=max(0, deadline - time.monotonic()))
+        # A slow load or cancelled inference owns cleanup until it returns.
+        if any(worker.is_alive() for worker in workers):
+            logger.warning("TTS is still stopping; leaving resources to its worker.")
+            return
+        self._release_resources_if_stopped()
         self.stateChanged.emit("idle")

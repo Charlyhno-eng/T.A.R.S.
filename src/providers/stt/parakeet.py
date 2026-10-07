@@ -122,15 +122,16 @@ class ParakeetProvider:
         # Keep the extracted checkpoint alive while tensors map its storage.
         # In particular, Windows cannot delete files with live mappings.
         # Use the checkpoint's filesystem: /tmp may be a RAM-backed tmpfs.
-        self._checkpoint_directory = tempfile.TemporaryDirectory(
-            prefix=".parakeet-", dir=self._data_directory,
-        )
         connector = InferenceSaveRestoreConnector()
         try:
-            connector._unpack_nemo_file(
-                path2file=str(self._model_path),
-                out_folder=self._checkpoint_directory.name,
-            )
+            if self._checkpoint_directory is None:
+                self._checkpoint_directory = tempfile.TemporaryDirectory(
+                    prefix=".parakeet-", dir=self._data_directory,
+                )
+                connector._unpack_nemo_file(
+                    path2file=str(self._model_path),
+                    out_folder=self._checkpoint_directory.name,
+                )
             connector.model_extracted_dir = self._checkpoint_directory.name
             self._model = nemo_asr.models.ASRModel.restore_from(
                 restore_path=str(self._model_path),
@@ -226,12 +227,16 @@ class ParakeetProvider:
             .div_(32768.0)
         )
 
-    def shutdown(self) -> None:
-        """Release provider resources."""
-        had_resources = self._model is not None or self._checkpoint_directory is not None
+    def release_model(self) -> None:
+        """Unmap idle weights, retaining the extracted checkpoint for reuse."""
+        had_model = self._model is not None
         self._model = None
-        if had_resources:
+        if had_model:
             release_unused_memory(collect=True)
+
+    def shutdown(self) -> None:
+        """Release provider resources and remove the extracted checkpoint."""
+        self.release_model()
         if self._checkpoint_directory is not None:
             self._checkpoint_directory.cleanup()
             self._checkpoint_directory = None

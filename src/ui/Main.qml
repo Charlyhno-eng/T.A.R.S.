@@ -17,6 +17,9 @@ ApplicationWindow {
     visible: false
     flags: Qt.Window | Qt.FramelessWindowHint
 
+    readonly property bool interfaceVisible: visible && visibility !== Window.Minimized
+    onInterfaceVisibleChanged: assistant.setWindowVisible(interfaceVisible)
+
     onClosing: function(close) {
         settingsDialog.close()
         conversationDialog.close()
@@ -37,7 +40,11 @@ ApplicationWindow {
     readonly property real textScale: Math.min(1.4, Math.max(0.9, Math.min(width / 1000, height / 700)))
     readonly property real outerMargin: Math.min(40, Math.max(20, width * 0.025))
 
-    background: FrostedBackground {
+    background: Loader {
+        active: window.interfaceVisible
+        sourceComponent: FrostedBackground {
+            objectName: "assistantBackground"
+        }
     }
 
     MouseArea {
@@ -257,17 +264,19 @@ ApplicationWindow {
                 anchors.topMargin: 14
                 anchors.bottomMargin: 14
 
-                JarvisSphere {
-                    id: sphere
-                    objectName: "assistantRobot"
+                Loader {
                     anchors.centerIn: parent
                     width: Math.max(0, Math.min(parent.width, parent.height))
                     height: width
-                    sphereState: window.assistantState
-                    animationsEnabled: window.active
-                    interactionEnabled: assistant.modelsReady && !assistant.modelsDownloading
-                    onPressed: assistant.startListening()
-                    onReleased: assistant.stopListening()
+                    active: window.interfaceVisible
+                    sourceComponent: JarvisSphere {
+                        objectName: "assistantRobot"
+                        sphereState: window.assistantState
+                        animationsEnabled: window.active
+                        interactionEnabled: assistant.modelsReady && !assistant.modelsDownloading
+                        onPressed: assistant.startListening()
+                        onReleased: assistant.stopListening()
+                    }
                 }
             }
             Text {

@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Callable
 from core.paths import data_directory as user_data_directory
+from core.runtime_resources import release_unused_memory
 
 
 logger = logging.getLogger("TARS.PocketTTS")
@@ -268,9 +269,12 @@ class PocketTTSProvider:
 
     def shutdown(self) -> None:
         """Release provider resources."""
+        had_model = self._model is not None or self._voice_state is not None
         self._voice_state = None
         self._model = None
         self._loaded_language = None
+        if had_model:
+            release_unused_memory(collect=True)
 
     def _language_info(self, language: str) -> dict[str, str]:
         try:

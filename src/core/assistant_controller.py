@@ -171,7 +171,7 @@ class AssistantController(QObject):
 
     @Property(bool, notify=modelsReadyChanged)
     def modelsReady(self) -> bool:
-        """Return whether both local models are loaded."""
+        """Return whether both services can accept a request, including standby."""
         return self._tts_ready and self._stt_ready
 
     @Property(bool, notify=modelsLoadingChanged)
@@ -302,6 +302,11 @@ class AssistantController(QObject):
         self.responseChanged.emit()
         self._set_status("Parlez maintenant, puis relâchez le bouton.")
         self._set_state("listening")
+
+    @Slot(bool)
+    def setWindowVisible(self, visible: bool) -> None:
+        """Keep background voice access ready while releasing the idle engine."""
+        self._tts_service.set_background(not visible)
 
     @Slot()
     def stopListening(self) -> None:

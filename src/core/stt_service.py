@@ -38,6 +38,7 @@ class STTService(QObject):
         self._installing = False
         self._transcribing = False
         self._lock = threading.Lock()
+        self._provider_lock = threading.Lock()
         self._workers: set[threading.Thread] = set()
         self._shutdown_requested = False
         self._resources_released = False
@@ -53,7 +54,13 @@ class STTService(QObject):
 
     def _run_worker(self, target: Callable, args: tuple) -> None:
         try:
-            target(*args)
+            # Ready means available for another request, not resident in RAM.
+            # Serialize reloads and keep mappings alive until inference returns.
+            with self._provider_lock:
+                try:
+                    target(*args)
+                finally:
+                    self._adapter.release_model()
         finally:
             with self._lock:
                 self._workers.discard(threading.current_thread())
@@ -91,7 +98,7 @@ class STTService(QObject):
             self.stateChanged.emit("not_installed")
             return
         with self._lock:
-            if self._initialized or self._initializing:
+            if self._shutdown_requested or self._initialized or self._initializing:
                 return
             self._initializing = True
         self.stateChanged.emit("loading")
@@ -115,7 +122,7 @@ class STTService(QObject):
     def download(self) -> None:
         """Download and prepare the provider resources."""
         with self._lock:
-            if self._installing:
+            if self._shutdown_requested or self._installing:
                 return
             self._installing = True
         self.installationStarted.emit()
@@ -142,7 +149,7 @@ class STTService(QObject):
     def transcribe(self, audio_path: Path) -> None:
         """Convert an audio file into text."""
         with self._lock:
-            if not self._initialized or self._transcribing:
+            if self._shutdown_requested or not self._initialized or self._transcribing:
                 self.errorOccurred.emit("Parakeet n'est pas disponible.")
                 return
             self._transcribing = True
@@ -151,6 +158,7 @@ class STTService(QObject):
 
     def _transcribe_worker(self, audio_path: Path) -> None:
         try:
+            self._adapter.initialize()
             self.statusChanged.emit("Transcription de votre message...")
             self.transcriptionReady.emit(
                 self._adapter.transcribe(audio_path, language=self._language)

@@ -14,7 +14,7 @@ T.A.R.S. is a personal voice assistant and extensible Jarvis-style foundation, b
 - `src/core` contains services, settings, audio and desktop integration; `src/providers/{stt,tts,llm}` contains provider implementations and adapters; `src/ui` contains the QML interface.
 - Manage dependencies with `uv` and `pyproject.toml`. Run with `uv run python src/app.py`; run tests with `uv run --project . --directory src python -m unittest discover -s ../tests`.
 - Settings and the private Z.AI key live in `~/.tars/config`; voice resources live in `~/.tars/{stt,tts}`. `TARS_DATA_DIR` overrides this root; `core/paths.py` resolves bundled assets and OS temporary files.
-- Parakeet's full-precision weights map a temporary extraction beside the installed checkpoint; keep it alive until all STT workers finish. TTS bounds queued audio without changing provider chunk boundaries.
+- Parakeet releases idle weights after validation/transcription and reuses its disk extraction until all STT workers stop at shutdown. Hidden/minimized windows release TTS after synthesis; services remain ready to reload locally. TTS bounds queued audio without changing provider chunk boundaries.
 - Build on each target OS/architecture with `uv run --group build python scripts/build_app.py`. Linux install: `uv run python scripts/install_linux.py --clean-dist`.
 
 ## Working rules

@@ -265,6 +265,8 @@ class DesktopTests(unittest.TestCase):
             window = engine.rootObjects()[0]
             self.desktop.attach_window(window)
             self.assertTrue(window.flags() & Qt.FramelessWindowHint)
+            self.assertIsNotNone(window.findChild(QObject, "assistantRobot"))
+            self.assertIsNotNone(window.findChild(QObject, "assistantBackground"))
             button = window.findChild(QObject, "closeWindowButton")
             self.assertIsNotNone(button)
 
@@ -274,11 +276,21 @@ class DesktopTests(unittest.TestCase):
                 QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, point.toPoint())
                 QTest.qWait(50)
                 self.assertFalse(window.isVisible())
+                self.assertIsNone(window.findChild(QObject, "assistantRobot"))
+                self.assertIsNone(window.findChild(QObject, "assistantBackground"))
+                self.assertTrue(assistant._tts_service._background)
 
             window.showFullScreen()
             click_close()
             self.desktop.showWindow()
             self.assertEqual(window.visibility(), QWindow.FullScreen)
+            self.assertIsNotNone(window.findChild(QObject, "assistantRobot"))
+            self.assertFalse(assistant._tts_service._background)
+            window.showMinimized()
+            QTest.qWait(50)
+            self.assertTrue(assistant._tts_service._background)
+            self.assertIsNone(window.findChild(QObject, "assistantRobot"))
+            self.assertIsNone(window.findChild(QObject, "assistantBackground"))
             self.assertFalse(self.app.quitOnLastWindowClosed())
             window.showNormal()
             self.tray.isSystemTrayAvailable.return_value = False
