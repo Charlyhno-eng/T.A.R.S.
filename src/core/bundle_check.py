@@ -27,7 +27,13 @@ def _check_synthesis(provider: TTSAdapter | PocketTTSProvider, language: str,
     from scipy.signal import resample_poly
     from math import gcd
 
-    text = "Hello, this is TARS." if language == "en" else "Bonjour, je suis TARS."
+    # A complete utterance is more reliable for STT than a very short greeting,
+    # especially with Pocket TTS's stochastic generation.
+    text = (
+        "Hello, this is TARS. I can help you today and answer your questions."
+        if language == "en" else
+        "Bonjour, je suis TARS. Je peux vous aider aujourd'hui et répondre à vos questions."
+    )
     name = type(provider).__name__
     chunks = list(provider.generate_stream(text, threading.Event()))
     if not chunks:
