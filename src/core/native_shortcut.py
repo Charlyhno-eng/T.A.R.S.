@@ -27,7 +27,7 @@ class WindowsEventFilter(QAbstractNativeEventFilter):
         super().__init__()
         self.shortcut = shortcut
 
-    def nativeEventFilter(self, event_type, message):
+    def nativeEventFilter(self, _event_type, message):
         event = wintypes.MSG.from_address(int(message))
         if event.message == 0x0312 and event.wParam == self.shortcut.identifier:
             self.shortcut.activate()
@@ -91,7 +91,7 @@ class NativeShortcut(QObject):
         self._api.RemoveEventHandler.restype = ctypes.c_int32
         callback_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
 
-        def event_handler(call, event, data):
+        def event_handler(_call, event, _data):
             identifier = HotKeyID()
             result = self._api.GetEventParameter(event, 0x2D2D2D2D, 0x686B6964,
                 None, ctypes.sizeof(identifier), None, ctypes.byref(identifier))

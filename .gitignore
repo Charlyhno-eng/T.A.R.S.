@@ -41,6 +41,12 @@ qmlcachegen/
 *.log
 logs/
 
+# Backend coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Environment / secrets
 .env
 .env.*

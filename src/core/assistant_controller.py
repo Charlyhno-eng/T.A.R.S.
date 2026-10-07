@@ -33,20 +33,15 @@ class AssistantController(QObject):
         "Chargement des modèles locaux...": "Loading local models...",
         "Modèles locaux non installés.": "Local models are not installed.",
         "Moteur vocal non installé.": "Voice engine is not installed.",
-        "Chargement de Parakeet sur CPU...": "Loading Parakeet on CPU...",
-        "Installation locale de Pocket TTS...": "Installing Pocket TTS locally...",
         "Installation locale de Piper TTS...": "Installing Piper TTS locally...",
-        "Chargement local de Pocket TTS...": "Loading Pocket TTS locally...",
         "Téléchargez d'abord les modèles locaux.": "Download the local models first.",
         "Chargement des modèles locaux en cours...": "Local models are loading...",
         "Parlez maintenant, puis relâchez le bouton.": "Speak now, then release the button.",
         "Transcription locale en cours...": "Transcribing locally...",
         "Transcription de votre message...": "Transcribing your message...",
-        "Pocket TTS prêt. Chargement de Parakeet sur CPU...": "Pocket TTS is ready. Loading Parakeet on CPU...",
         "Modèles locaux prêts.": "Local models are ready.",
         "Installation locale de Parakeet...": "Installing Parakeet locally...",
         "Téléchargement de Parakeet (environ 2,5 Go)...": "Downloading Parakeet (about 2.5 GB)...",
-        "Modèles installés. T.A.R.S. est utilisable hors ligne.": "Models installed. T.A.R.S. works offline.",
         "Échec du téléchargement des modèles locaux.": "Local model download failed.",
         "Échec du téléchargement du moteur vocal.": "Voice engine download failed.",
         "Je n'ai rien entendu. Réessayez.": "I didn't hear anything. Please try again.",
@@ -65,8 +60,6 @@ class AssistantController(QObject):
         "Téléchargement de la voix Pocket TTS...": "Downloading Pocket TTS voice...",
         "Téléchargement du modèle Piper TTS...": "Downloading Piper TTS model...",
         "Téléchargement de la configuration Piper TTS...": "Downloading Piper TTS configuration...",
-        "Génération de la réponse vocale...": "Generating voice response...",
-        "Erreur lors de la génération audio.": "Audio generation failed.",
         "Impossible de charger le moteur vocal local.": "Unable to load local voice engine.",
         "Chargement local de Parakeet...": "Loading Parakeet locally...",
         "Parakeet est prêt.": "Parakeet is ready.",
@@ -336,19 +329,7 @@ class AssistantController(QObject):
         self._stt_service.transcribe(audio_path)
 
     def _on_tts_state_changed(self, state: str) -> None:
-        loading_before = self.modelsLoading
-        ready_before = self.modelsReady
-        if state == "loading":
-            self._tts_loading, self._tts_ready = True, False
-        elif state == "ready":
-            self._tts_loading, self._tts_ready = False, True
-        elif state in ("error", "not_installed"):
-            self._tts_loading, self._tts_ready = False, False
-        if loading_before != self.modelsLoading:
-            self.modelsLoadingChanged.emit()
-        if ready_before != self.modelsReady:
-            self.modelsReadyChanged.emit()
-
+        self._update_model_state("tts", state)
         if self._startup_stt_pending and state in ("ready", "error", "not_installed"):
             self._startup_stt_pending = False
             self._stt_service.initialize_async()
@@ -356,19 +337,20 @@ class AssistantController(QObject):
         self._update_models_ready_status(state)
 
     def _on_stt_state_changed(self, state: str) -> None:
+        self._update_model_state("stt", state)
+        self._update_models_ready_status(state)
+
+    def _update_model_state(self, model: str, state: str) -> None:
+        """Apply identical readiness rules to both local providers."""
         loading_before = self.modelsLoading
         ready_before = self.modelsReady
-        if state == "loading":
-            self._stt_loading, self._stt_ready = True, False
-        elif state == "ready":
-            self._stt_loading, self._stt_ready = False, True
-        elif state in ("error", "not_installed"):
-            self._stt_loading, self._stt_ready = False, False
+        if state in {"loading", "ready", "error", "not_installed"}:
+            setattr(self, f"_{model}_loading", state == "loading")
+            setattr(self, f"_{model}_ready", state == "ready")
         if loading_before != self.modelsLoading:
             self.modelsLoadingChanged.emit()
         if ready_before != self.modelsReady:
             self.modelsReadyChanged.emit()
-        self._update_models_ready_status(state)
 
     def _on_tts_installed(self) -> None:
         self.modelsInstalledChanged.emit()
